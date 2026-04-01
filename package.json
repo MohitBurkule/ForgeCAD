@@ -28,7 +28,7 @@
     "test:solver": "node scripts/solver-test.mjs",
     "build": "npm run build:solver && npm run build:skill:forgecad && tsc && vite build && npm run build:cli",
     "build:web": "npm run build:solver && tsc && FORGE_MODE=web vite build",
-    "build:pages": "tsc && FORGE_MODE=web vite build",
+    "build:pages": "FORGE_MODE=web vite build",
     "dev:cli": "tsup cli/forgecad.ts --format esm --platform node --target node20 --out-dir dist-cli --sourcemap --external typescript",
     "build:cli": "tsup cli/forgecad.ts --format esm --platform node --target node20 --out-dir dist-cli --clean --sourcemap --external typescript",
     "lint": "npx biome check .",
