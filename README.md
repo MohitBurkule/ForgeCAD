@@ -361,6 +361,21 @@ npm pack --dry-run
 
 The build produces `dist/` (browser SPA), `dist-cli/` (CLI bundle), and `dist-skill/` (self-contained Claude Code skill). All three are included in the published package. End users get a fast production server; contributors without a built `dist/` automatically fall back to the Vite dev server.
 
+## Deploying to Cloudflare Pages
+
+ForgeCAD's default `npm run build` compiles the Rust solver to WebAssembly via `wasm-pack`, which is not available in the Cloudflare Pages build environment.  Use the Pages-specific build script instead, which skips the solver build and only builds the web app:
+
+| Setting | Value |
+|---|---|
+| **Build command** | `npm run build:pages` |
+| **Build output directory** | `dist` |
+| **Run command** | *(none)* |
+| **Node version** | `20` or later |
+
+> **Why not `npm run build`?**  The default build runs `npm run build:solver`, which requires `cargo` and `wasm-pack` (Rust toolchain).  Cloudflare Pages does not provide these tools, so the build fails with *"wasm-pack not found / cargo is also missing"*.  `build:pages` runs only `tsc` and Vite, so no Rust installation is needed.
+
+The pre-compiled WASM solver artifact (`manifold.wasm`) is committed to the repo and served directly, so the web app is fully functional without rebuilding the solver.
+
 ## Contributing
 
 Contributions are welcome. Good first contributions:
