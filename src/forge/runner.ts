@@ -58,6 +58,7 @@ import {
   runWithParamScope,
   setParamOverrides,
   validateConsumedOverrides,
+  Param,
 } from './params';
 import { type ForgeQualityPreset, resolveForgeQualityPreset, runWithForgeQuality } from './quality';
 import { type CollectedRobotExport, getCollectedRobotExport, resetRobotExport, robotExport } from './export/robotExport';
@@ -463,6 +464,7 @@ function executeFile(
       SheetMetalPart,
       param,
       boolParam,
+      Param,
       sdf,
       Shape,
       Sketch,

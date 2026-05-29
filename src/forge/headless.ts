@@ -107,7 +107,7 @@ export { partLibrary } from './library';
 export type { ForgeGeometry } from './mesh/meshToGeometry';
 export { shapeToGeometry } from './mesh/meshToGeometry';
 export type { ParamDef } from './params';
-export { boolParam, getCollectedParams, param, resetParams, setParamOverrides } from './params';
+export { boolParam, choiceParam, getCollectedParams, listParam, Param, param, resetParams, setParamOverrides, setStringParamOverrides, stringParam } from './params';
 export type { ForgeQualityPreset, ForgeQualityProfile } from './quality';
 export {
   FORGE_QUALITY_PRESETS,

@@ -18,6 +18,18 @@ export interface ParamDef {
   integer?: boolean;
   reverse?: boolean;
   boolean?: boolean;
+  /** Discriminator for non-numeric parameter kinds. Numeric params leave this undefined. */
+  kind?: 'number' | 'bool' | 'string' | 'choice' | 'list';
+  /** Current value for string/choice params. */
+  stringValue?: string;
+  stringDefault?: string;
+  /** Allowed labels for choice params. */
+  choices?: string[];
+  /** Max length for string params. */
+  maxLength?: number;
+  /** Current/default items for list params. */
+  listValue?: unknown[];
+  listDefault?: unknown[];
 }
 
 interface ParamScope {
@@ -112,6 +124,134 @@ export function boolParam(name: string, defaultValue: boolean): boolean {
   }
   return value === 1;
 }
+
+/** String-valued overrides (from UI/CLI/require), keyed by param name. */
+let _stringOverrides: Record<string, string> = {};
+
+/** Set string-valued parameter overrides (for Param.string / Param.choice). */
+export function setStringParamOverrides(overrides: Record<string, string>) {
+  _stringOverrides = overrides ?? {};
+}
+
+function hasOwnStr(obj: Record<string, string>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function scopedParamName(name: string): string {
+  const scope = _scopeStack[_scopeStack.length - 1];
+  return scope?.namePrefix ? `${scope.namePrefix} / ${name}` : name;
+}
+
+/**
+ * Declare a string parameter that renders as a text input. Returns the current value.
+ */
+export function stringParam(name: string, defaultValue: string, opts: { maxLength?: number } = {}): string {
+  const scope = _scopeStack[_scopeStack.length - 1];
+  const scopedName = scopedParamName(name);
+  const scopedLocal = scope?.localOverrides;
+  // String params consume string overrides; mark the key consumed if present (numeric scope tracking).
+  if (scopedLocal && hasOwn(scopedLocal, name)) scope!.consumedKeys?.add(name);
+
+  let value =
+    (hasOwnStr(_stringOverrides, scopedName) ? _stringOverrides[scopedName] : undefined) ??
+    (hasOwnStr(_stringOverrides, name) ? _stringOverrides[name] : undefined) ??
+    defaultValue;
+  if (typeof opts.maxLength === 'number' && value.length > opts.maxLength) value = value.slice(0, opts.maxLength);
+
+  _params.push({
+    name: scopedName,
+    value: 0,
+    defaultValue: 0,
+    min: 0,
+    max: 0,
+    step: 0,
+    kind: 'string',
+    stringValue: value,
+    stringDefault: defaultValue,
+    maxLength: opts.maxLength,
+  });
+  return value;
+}
+
+/**
+ * Declare a choice parameter that renders as a dropdown. Returns the selected label.
+ * Overrides may be a label string or a numeric index.
+ */
+export function choiceParam(name: string, defaultValue: string, choices: string[]): string {
+  if (!Array.isArray(choices) || choices.length === 0) {
+    throw new Error(`Param.choice("${name}"): choices must be a non-empty array of strings`);
+  }
+  if (!choices.includes(defaultValue)) {
+    throw new Error(`Param.choice("${name}"): defaultValue "${defaultValue}" must be one of ${JSON.stringify(choices)}`);
+  }
+  const scope = _scopeStack[_scopeStack.length - 1];
+  const scopedName = scopedParamName(name);
+  const scopedLocal = scope?.localOverrides;
+
+  let value = defaultValue;
+  // Numeric override = index into choices.
+  const numOverride = scopedLocal && hasOwn(scopedLocal, name) ? scopedLocal[name] : (_overrides[scopedName] ?? _overrides[name]);
+  if (typeof numOverride === 'number' && Number.isFinite(numOverride)) {
+    const idx = Math.round(numOverride);
+    if (idx >= 0 && idx < choices.length) value = choices[idx];
+    if (scopedLocal && hasOwn(scopedLocal, name)) scope!.consumedKeys?.add(name);
+  }
+  // String override = label (takes precedence).
+  const strOverride =
+    (hasOwnStr(_stringOverrides, scopedName) ? _stringOverrides[scopedName] : undefined) ??
+    (hasOwnStr(_stringOverrides, name) ? _stringOverrides[name] : undefined);
+  if (typeof strOverride === 'string' && choices.includes(strOverride)) value = strOverride;
+
+  _params.push({
+    name: scopedName,
+    value: choices.indexOf(value),
+    defaultValue: choices.indexOf(defaultValue),
+    min: 0,
+    max: choices.length - 1,
+    step: 1,
+    kind: 'choice',
+    stringValue: value,
+    stringDefault: defaultValue,
+    choices: [...choices],
+  });
+  return value;
+}
+
+/**
+ * Declare a list parameter — an array of struct items. Returns the current items.
+ * The UI override mechanism for lists is not yet wired; this returns a clone of the defaults.
+ */
+export function listParam<T extends Record<string, number | boolean | string>>(
+  name: string,
+  defaultItems: T[],
+  _opts: { fields?: unknown; minItems?: number; maxItems?: number } = {},
+): T[] {
+  const items = defaultItems.map((it) => ({ ...it }));
+  _params.push({
+    name: scopedParamName(name),
+    value: items.length,
+    defaultValue: defaultItems.length,
+    min: 0,
+    max: defaultItems.length,
+    step: 1,
+    kind: 'list',
+    listValue: items,
+    listDefault: defaultItems.map((it) => ({ ...it })),
+  });
+  return items;
+}
+
+/**
+ * `Param.*` namespace — the parameter-declaration API surface.
+ * `Param.number`/`Param.bool` are aliases of the standalone `param`/`boolParam` functions.
+ */
+export const Param = {
+  number: param,
+  string: stringParam,
+  bool: boolParam,
+  choice: choiceParam,
+  list: listParam,
+} as const;
 
 /**
  * Create a scope with consumed-key tracking enabled.

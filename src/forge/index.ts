@@ -152,6 +152,7 @@ export {
   intersectWithPlane,
   jointsView,
   param,
+  Param,
   partLibrary,
   projectToPlane,
   resetBom,

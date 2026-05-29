@@ -90,7 +90,7 @@ export type { GeometryBackend, GeometryFidelity, GeometryInfo, GeometryRepresent
 /** @concept library */ export { partLibrary as lib } from './library';
 
 // ── param (C11) ─────────────────────────────────────────────────────────────────
-/** @concept param */ export { boolParam, param } from './params';
+/** @concept param */ export { boolParam, param, Param } from './params';
 
 // ── placement (C9) ──────────────────────────────────────────────────────────────
 export type { PortAlign, PortDef, PortInput, PortMap } from './port';
