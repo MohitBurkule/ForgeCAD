@@ -137,5 +137,6 @@ export function circularPattern2d(
 /** Mirror a shape across a plane defined by its normal and union the mirror with the original. */
 export function mirrorCopy(shape: ShapeArg, normal: [number, number, number]): Shape {
   const base = unwrap(shape);
-  return union(base, base.mirror(normal));
+  // The mirror plane passes through the origin (not the shape's bbox center, unlike Shape.mirror()).
+  return union(base, base.mirrorThrough([0, 0, 0], normal));
 }

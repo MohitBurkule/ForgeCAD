@@ -881,13 +881,51 @@ export class Shape {
     return this.moveTo((tbb.min as number[])[0] + x, (tbb.min as number[])[1] + y, (tbb.min as number[])[2] + z);
   }
 
-  /** Rotate using Euler angles in degrees around each axis. */
-  rotate(x: number, y: number, z: number): Shape {
+  /**
+   * Rotate the shape.
+   *
+   * Two call forms are supported:
+   *  - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })` — rotate around an arbitrary
+   *    axis through the origin (or an optional pivot).
+   *  - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)` — rotate by Euler angles around each axis.
+   *
+   * The form is selected by the first argument: an array is treated as an axis, three numbers as Euler angles.
+   */
+  rotate(
+    axisOrXDeg: [number, number, number] | number,
+    angleOrYDeg?: number,
+    optionsOrZDeg?: { pivot?: [number, number, number] } | number,
+  ): Shape {
+    // Axis form: rotate(axis, angleDeg, { pivot? })
+    if (Array.isArray(axisOrXDeg)) {
+      const angleDeg = angleOrYDeg ?? 0;
+      const pivot = (optionsOrZDeg as { pivot?: [number, number, number] } | undefined)?.pivot ?? [0, 0, 0];
+      return this.rotateAround(axisOrXDeg, angleDeg, pivot);
+    }
+    // Legacy Euler form: rotate(xDeg, yDeg, zDeg)
+    const x = axisOrXDeg;
+    const y = (angleOrYDeg as number) ?? 0;
+    const z = (optionsOrZDeg as number) ?? 0;
     const nextPlan = appendShapeCompileTransform(getShapeCompilePlanInternal(this), { kind: 'rotate', xDeg: x, yDeg: y, zDeg: z });
     return setShapeCompilePlanInternal(
       withTransformedDimensions(this, buildShapeFromCompilePlan(nextPlan, this.colorHex), rotationEulerMatrix(x, y, z)),
       nextPlan,
     );
+  }
+
+  /** Rotate around the X axis by the given angle in degrees (optionally through a pivot point). */
+  rotateX(angleDeg: number, options?: { pivot?: [number, number, number] }): Shape {
+    return this.rotateAround([1, 0, 0], angleDeg, options?.pivot ?? [0, 0, 0]);
+  }
+
+  /** Rotate around the Y axis by the given angle in degrees (optionally through a pivot point). */
+  rotateY(angleDeg: number, options?: { pivot?: [number, number, number] }): Shape {
+    return this.rotateAround([0, 1, 0], angleDeg, options?.pivot ?? [0, 0, 0]);
+  }
+
+  /** Rotate around the Z axis by the given angle in degrees (optionally through a pivot point). */
+  rotateZ(angleDeg: number, options?: { pivot?: [number, number, number] }): Shape {
+    return this.rotateAround([0, 0, 1], angleDeg, options?.pivot ?? [0, 0, 0]);
   }
 
   /** Apply a 4x4 affine transform matrix (column-major) or a Transform object. */
@@ -906,29 +944,59 @@ export class Shape {
     return setShapeCompilePlanInternal(withTransformedDimensions(this, buildShapeFromCompilePlan(nextPlan, this.colorHex), mat), nextPlan);
   }
 
-  /** Scale the shape uniformly or per-axis. Accepts a single number or [x, y, z] array. */
+  /** Scale the shape uniformly or per-axis from the shape's bounding box center. Accepts a single number or [x, y, z] array. */
   scale(v: number | [number, number, number]): Shape {
+    const bb = this.boundingBox();
+    const min = bb.min as number[];
+    const max = bb.max as number[];
+    const center: [number, number, number] = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+    return this.scaleAround(center, v);
+  }
+
+  /** Scale the shape uniformly or per-axis from an explicit pivot point. */
+  scaleAround(pivot: [number, number, number], v: number | [number, number, number]): Shape {
     const scale = normalizeShapeScale(v);
-    if (scale) {
-      const nextPlan = appendShapeCompileTransform(getShapeCompilePlanInternal(this), {
-        kind: 'scale',
-        x: scale[0],
-        y: scale[1],
-        z: scale[2],
-      });
-      return setShapeCompilePlanInternal(
-        withTransformedDimensions(this, buildShapeFromCompilePlan(nextPlan, this.colorHex), Transform.scale(v).toArray()),
-        nextPlan,
+    if (!scale) {
+      // Degenerate scale (zero or non-finite component) produces degenerate geometry.
+      throw new Error(
+        `Shape.scale() received a degenerate scale value (${JSON.stringify(v)}). ` + 'All scale components must be finite and non-zero.',
       );
     }
-    // Degenerate scale (zero or non-finite component) produces degenerate geometry.
-    throw new Error(
-      `Shape.scale() received a degenerate scale value (${JSON.stringify(v)}). ` + 'All scale components must be finite and non-zero.',
+    const [px, py, pz] = pivot;
+    return this.translate(-px, -py, -pz).scaleFromOrigin(scale).translate(px, py, pz);
+  }
+
+  /** Internal: scale about the world origin (the raw compile-plan scale step). */
+  private scaleFromOrigin(scale: [number, number, number]): Shape {
+    const nextPlan = appendShapeCompileTransform(getShapeCompilePlanInternal(this), {
+      kind: 'scale',
+      x: scale[0],
+      y: scale[1],
+      z: scale[2],
+    });
+    return setShapeCompilePlanInternal(
+      withTransformedDimensions(this, buildShapeFromCompilePlan(nextPlan, this.colorHex), Transform.scale(scale).toArray()),
+      nextPlan,
     );
   }
 
-  /** Mirror across a plane defined by its normal vector (does not need to be unit length). */
+  /** Mirror across a plane through the shape's bounding box center, defined by its normal vector (need not be unit length). */
   mirror(normal: [number, number, number]): Shape {
+    const bb = this.boundingBox();
+    const min = bb.min as number[];
+    const max = bb.max as number[];
+    const center: [number, number, number] = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+    return this.mirrorThrough(center, normal);
+  }
+
+  /** Mirror across a plane through an explicit point, defined by its normal vector (need not be unit length). */
+  mirrorThrough(point: [number, number, number], normal: [number, number, number]): Shape {
+    const [px, py, pz] = point;
+    return this.translate(-px, -py, -pz).mirrorThroughOrigin(normal).translate(px, py, pz);
+  }
+
+  /** Internal: mirror across a plane through the world origin (the raw compile-plan mirror step). */
+  private mirrorThroughOrigin(normal: [number, number, number]): Shape {
     const transformedPlan = appendShapeCompileTransform(getShapeCompilePlanInternal(this), {
       kind: 'mirror',
       normalX: normal[0],

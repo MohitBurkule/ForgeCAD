@@ -370,7 +370,24 @@ export class ShapeGroup {
     return this.attachTo(parent, face as Anchor3D, opp[face] as Anchor3D, uvMap[face](u, v, p));
   }
 
-  rotate(x: number, y: number, z: number): ShapeGroup {
+  /**
+   * Rotate the group. Two call forms (selected by the first argument):
+   *  - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })`
+   *  - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)`
+   */
+  rotate(
+    axisOrXDeg: [number, number, number] | number,
+    angleOrYDeg?: number,
+    optionsOrZDeg?: { pivot?: [number, number, number] } | number,
+  ): ShapeGroup {
+    if (Array.isArray(axisOrXDeg)) {
+      const angleDeg = angleOrYDeg ?? 0;
+      const pivot = (optionsOrZDeg as { pivot?: [number, number, number] } | undefined)?.pivot ?? [0, 0, 0];
+      return this.rotateAround(axisOrXDeg, angleDeg, pivot);
+    }
+    const x = axisOrXDeg;
+    const y = (angleOrYDeg as number) ?? 0;
+    const z = (optionsOrZDeg as number) ?? 0;
     const matrix = eulerRotationMatrix(x, y, z);
     return this.mapChildrenTransform((c) => {
       if (c instanceof ShapeGroup) return c.rotate(x, y, z);
@@ -378,6 +395,21 @@ export class ShapeGroup {
       if (c instanceof Shape) return c.rotate(x, y, z);
       return c.rotate(x); // 2D rotation only uses first arg
     }, matrix);
+  }
+
+  /** Rotate around the X axis by the given angle in degrees (optionally through a pivot point). */
+  rotateX(angleDeg: number, options?: { pivot?: [number, number, number] }): ShapeGroup {
+    return this.rotateAround([1, 0, 0], angleDeg, options?.pivot ?? [0, 0, 0]);
+  }
+
+  /** Rotate around the Y axis by the given angle in degrees (optionally through a pivot point). */
+  rotateY(angleDeg: number, options?: { pivot?: [number, number, number] }): ShapeGroup {
+    return this.rotateAround([0, 1, 0], angleDeg, options?.pivot ?? [0, 0, 0]);
+  }
+
+  /** Rotate around the Z axis by the given angle in degrees (optionally through a pivot point). */
+  rotateZ(angleDeg: number, options?: { pivot?: [number, number, number] }): ShapeGroup {
+    return this.rotateAround([0, 0, 1], angleDeg, options?.pivot ?? [0, 0, 0]);
   }
 
   /**
@@ -446,22 +478,51 @@ export class ShapeGroup {
     return transformGroupRefs(this, next, matrix);
   }
 
+  /** Scale all children uniformly or per-axis from the group's bounding box center. */
   scale(v: number | [number, number, number]): ShapeGroup {
-    const matrix = Transform.scale(v).toArray();
+    const bb = this.boundingBox();
+    const center: [number, number, number] = [
+      (bb.min[0] + bb.max[0]) / 2,
+      (bb.min[1] + bb.max[1]) / 2,
+      (bb.min[2] + bb.max[2]) / 2,
+    ];
+    return this.scaleAround(center, v);
+  }
+
+  /** Scale all children uniformly or per-axis from an explicit pivot point (keeps the group coherent). */
+  scaleAround(pivot: [number, number, number], v: number | [number, number, number]): ShapeGroup {
+    const [px, py, pz] = pivot;
+    const matrix = Transform.translation(-px, -py, -pz).mul(Transform.scale(v)).mul(Transform.translation(px, py, pz)).toArray();
     return this.mapChildrenTransform((c) => {
-      if (c instanceof ShapeGroup) return c.scale(v);
-      if (c instanceof TrackedShape) return c.scale(v);
-      if (c instanceof Shape) return c.scale(v);
+      if (c instanceof ShapeGroup) return c.scaleAround(pivot, v);
+      if (c instanceof TrackedShape) return c.scaleAround(pivot, v);
+      if (c instanceof Shape) return c.scaleAround(pivot, v);
       return c.scale(typeof v === 'number' ? v : [v[0], v[1]]);
     }, matrix);
   }
 
+  /** Mirror all children across a plane through the group's bounding box center, defined by its normal. */
   mirror(normal: [number, number, number]): ShapeGroup {
-    const matrix = mirrorPlaneMatrix(normal);
+    const bb = this.boundingBox();
+    const center: [number, number, number] = [
+      (bb.min[0] + bb.max[0]) / 2,
+      (bb.min[1] + bb.max[1]) / 2,
+      (bb.min[2] + bb.max[2]) / 2,
+    ];
+    return this.mirrorThrough(center, normal);
+  }
+
+  /** Mirror all children across a plane through an explicit point, defined by its normal. */
+  mirrorThrough(point: [number, number, number], normal: [number, number, number]): ShapeGroup {
+    const [px, py, pz] = point;
+    const matrix = Transform.translation(-px, -py, -pz)
+      .mul(Transform.from(mirrorPlaneMatrix(normal)))
+      .mul(Transform.translation(px, py, pz))
+      .toArray();
     return this.mapChildrenTransform((c) => {
-      if (c instanceof ShapeGroup) return c.mirror(normal);
-      if (c instanceof TrackedShape) return c.mirror(normal);
-      if (c instanceof Shape) return c.mirror(normal);
+      if (c instanceof ShapeGroup) return c.mirrorThrough(point, normal);
+      if (c instanceof TrackedShape) return c.mirrorThrough(point, normal);
+      if (c instanceof Shape) return c.mirrorThrough(point, normal);
       return c.mirror([normal[0], normal[1]]);
     }, matrix);
   }

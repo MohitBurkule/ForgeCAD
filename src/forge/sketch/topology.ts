@@ -298,9 +298,33 @@ export class TrackedShape {
     return new TrackedShape(final, { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
   }
 
-  /** Rotate using Euler angles (degrees), topology is cleared */
-  rotate(x: number, y: number, z: number): TrackedShape {
-    return new TrackedShape(this.shape.rotate(x, y, z), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
+  /**
+   * Rotate the shape. Topology is cleared. Two call forms (selected by the first argument):
+   *  - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })`
+   *  - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)`
+   */
+  rotate(
+    axisOrXDeg: [number, number, number] | number,
+    angleOrYDeg?: number,
+    optionsOrZDeg?: { pivot?: [number, number, number] } | number,
+  ): TrackedShape {
+    const rotated = (this.shape.rotate as (...args: unknown[]) => Shape)(axisOrXDeg, angleOrYDeg, optionsOrZDeg);
+    return new TrackedShape(rotated, { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
+  }
+
+  /** Rotate around the X axis by the given angle in degrees. Topology is cleared. */
+  rotateX(angleDeg: number, options?: { pivot?: [number, number, number] }): TrackedShape {
+    return new TrackedShape(this.shape.rotateX(angleDeg, options), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
+  }
+
+  /** Rotate around the Y axis by the given angle in degrees. Topology is cleared. */
+  rotateY(angleDeg: number, options?: { pivot?: [number, number, number] }): TrackedShape {
+    return new TrackedShape(this.shape.rotateY(angleDeg, options), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
+  }
+
+  /** Rotate around the Z axis by the given angle in degrees. Topology is cleared. */
+  rotateZ(angleDeg: number, options?: { pivot?: [number, number, number] }): TrackedShape {
+    return new TrackedShape(this.shape.rotateZ(angleDeg, options), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
   }
 
   /** Apply a 4x4 transform matrix or Transform object. Topology is cleared. */
@@ -339,14 +363,24 @@ export class TrackedShape {
     );
   }
 
-  /** Scale the shape. Topology is cleared for non-uniform scale. */
+  /** Scale the shape from its bounding box center. Topology is cleared for non-uniform scale. */
   scale(v: number | [number, number, number]): TrackedShape {
     return new TrackedShape(this.shape.scale(v), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
   }
 
-  /** Mirror across a plane. Topology is cleared. */
+  /** Scale the shape from an explicit pivot point. Topology is cleared. */
+  scaleAround(pivot: [number, number, number], v: number | [number, number, number]): TrackedShape {
+    return new TrackedShape(this.shape.scaleAround(pivot, v), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
+  }
+
+  /** Mirror across a plane through the shape's bounding box center. Topology is cleared. */
   mirror(normal: [number, number, number]): TrackedShape {
     return new TrackedShape(this.shape.mirror(normal), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
+  }
+
+  /** Mirror across a plane through an explicit point. Topology is cleared. */
+  mirrorThrough(point: [number, number, number], normal: [number, number, number]): TrackedShape {
+    return new TrackedShape(this.shape.mirrorThrough(point, normal), { faces: new Map(), edges: new Map() }, this.baseHeight, this.extrudeUp);
   }
 
   /** Set the display color. Returns a new TrackedShape. */
