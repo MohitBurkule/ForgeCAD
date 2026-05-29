@@ -183,6 +183,8 @@ export {
   /** @concept promotion */ loftAlongSpine,
   /** @concept pattern */ mirrorCopy,
   /** @concept primitive */ ngon,
+  /** @concept promotion */ nurbs3d,
+  /** @concept promotion */ nurbsSurface,
   /** @concept primitive */ Point2D,
   /** @concept primitive */ path,
   /** @concept topology */ pickEdge,

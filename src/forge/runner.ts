@@ -153,6 +153,8 @@ import {
   text2d,
   textWidth,
   union2d,
+  nurbs3d,
+  nurbsSurface,
 } from './sketch';
 import type { SolverWasmRunDebugSnapshot } from './sketch/constraints/solver-wasm';
 import { composeChain, Transform } from './transform';
@@ -445,6 +447,8 @@ function executeFile(
       Curve3D,
       spline2d,
       spline3d,
+      nurbs3d,
+      nurbsSurface,
       loft,
       loftAlongSpine,
       sweep,
