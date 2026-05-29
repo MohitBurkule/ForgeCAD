@@ -1049,10 +1049,15 @@ Core 3D solid shape. All operations are immutable and return new shapes. Support
 - `translate()` — Move the shape relative to its current position. All transforms are immutable and return new shapes.
 - `moveTo()` — Position the shape so its bounding box min corner is at the given global coordinate.
 - `moveToLocal()` — Position the shape relative to another shape's local coordinate system (bounding box min corner).
-- `rotate()` — Rotate using Euler angles in degrees around each axis.
+- `rotate()` — Rotate the shape. Two call forms are supported: - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })` — rotate around an arbitrary axis through the origin (or an optional pivot). - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)` — rotate by Euler angles around each axis. The form is selected by the first argument: an array is treated as an axis, three numbers as Euler angles.
+- `rotateX()` — Rotate around the X axis by the given angle in degrees (optionally through a pivot point).
+- `rotateY()` — Rotate around the Y axis by the given angle in degrees (optionally through a pivot point).
+- `rotateZ()` — Rotate around the Z axis by the given angle in degrees (optionally through a pivot point).
 - `transform()` — Apply a 4x4 affine transform matrix (column-major) or a Transform object.
-- `scale()` — Scale the shape uniformly or per-axis. Accepts a single number or [x, y, z] array.
-- `mirror()` — Mirror across a plane defined by its normal vector (does not need to be unit length).
+- `scale()` — Scale the shape uniformly or per-axis from the shape's bounding box center. Accepts a single number or [x, y, z] array.
+- `scaleAround()` — Scale the shape uniformly or per-axis from an explicit pivot point.
+- `mirror()` — Mirror across a plane through the shape's bounding box center, defined by its normal vector (need not be unit length).
+- `mirrorThrough()` — Mirror across a plane through an explicit point, defined by its normal vector (need not be unit length).
 - `pointAlong()` — Reorient a shape so its primary axis (Z) points along the given direction. Useful for laying cylinders/extrusions along X or Y without thinking about Euler angles. Example: cylinder(40, 5).pointAlong([1, 0, 0]) — lays cylinder along X
 - `rotateAround()` — Rotate around an arbitrary axis through a pivot point. Equivalent to: translate(-pivot) → rotate around axis → translate(+pivot)
 - `rotateAroundTo()` — Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point. `movingPoint` / `targetPoint` may be raw world points or this shape's anchors/references.
@@ -1111,13 +1116,18 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `moveToLocal()` — Move so bounding box min corner is at target's bounding box min + (x, y, z) offset
 - `moveBy()` — Alias for translate — matches ideal API's moveBy
 - `rotateAroundEdge()` — Rotate around a named edge by angle in degrees
-- `rotate()` — Rotate using Euler angles (degrees), topology is cleared
+- `rotate()` — Rotate the shape. Topology is cleared. Two call forms (selected by the first argument): - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })` - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)`
+- `rotateX()` — Rotate around the X axis by the given angle in degrees. Topology is cleared.
+- `rotateY()` — Rotate around the Y axis by the given angle in degrees. Topology is cleared.
+- `rotateZ()` — Rotate around the Z axis by the given angle in degrees. Topology is cleared.
 - `transform()` — Apply a 4x4 transform matrix or Transform object. Topology is cleared.
 - `pointAlong()` — Reorient so primary axis (Z) points along direction. Topology is cleared.
 - `rotateAround()` — Rotate around an arbitrary axis through a pivot point. Topology is cleared.
 - `rotateAroundTo()` — Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point.
-- `scale()` — Scale the shape. Topology is cleared for non-uniform scale.
-- `mirror()` — Mirror across a plane. Topology is cleared.
+- `scale()` — Scale the shape from its bounding box center. Topology is cleared for non-uniform scale.
+- `scaleAround()` — Scale the shape from an explicit pivot point. Topology is cleared.
+- `mirror()` — Mirror across a plane through the shape's bounding box center. Topology is cleared.
+- `mirrorThrough()` — Mirror across a plane through an explicit point. Topology is cleared.
 - `color()` — Set the display color. Returns a new TrackedShape.
 - `material()` — Set material properties (metalness, roughness, emissive, etc.). Returns a new TrackedShape.
 - `toShape()` — Access the underlying Shape for boolean ops etc
@@ -1175,13 +1185,18 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `moveToLocal()` — Move so combined bounding box min corner is at target's bounding box min + (x, y, z) offset
 - `attachTo()` — attachTo(target: Shape | TrackedShape | ShapeGroup, targetAnchor: Anchor3D | str
 - `onFace()` — Place this group on a face of a parent shape. See Shape.onFace() for full documentation.
-- `rotate()` — rotate(x: number, y: number, z: number): ShapeGroup
+- `rotate()` — Rotate the group. Two call forms (selected by the first argument): - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })` - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)`
+- `rotateX()` — Rotate around the X axis by the given angle in degrees (optionally through a pivot point).
+- `rotateY()` — Rotate around the Y axis by the given angle in degrees (optionally through a pivot point).
+- `rotateZ()` — Rotate around the Z axis by the given angle in degrees (optionally through a pivot point).
 - `rotateAround()` — Rotate around an arbitrary axis through a pivot point. Sugar for: group.transform(Transform.rotationAxis(axis, angleDeg, pivot))
 - `rotateAroundTo()` — Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point. ShapeGroup string points use built-in anchors only.
 - `pointAlong()` — Reorient all 3D children so their primary axis (Z) points along direction. Sugar for a single group-wide axis rotation via Transform.rotationAxis(...).
 - `transform()` — Apply a 4x4 transform matrix or Transform object to all 3D children.
-- `scale()` — scale(v: number | [ number, number, number ]): ShapeGroup
-- `mirror()` — mirror(normal: [ number, number, number ]): ShapeGroup
+- `scale()` — Scale all children uniformly or per-axis from the group's bounding box center.
+- `scaleAround()` — Scale all children uniformly or per-axis from an explicit pivot point (keeps the group coherent).
+- `mirror()` — Mirror all children across a plane through the group's bounding box center, defined by its normal.
+- `mirrorThrough()` — Mirror all children across a plane through an explicit point, defined by its normal.
 - `color()` — color(hex: string): ShapeGroup
 - `withReferences()` — Attach named placement references to this group. References survive normal transforms (translate/rotate/scale/mirror/transform). ```javascript const bracket = group( { name: 'Left', shape: leftShape }, { name: 'Right', shape: rightShape }, ).withReferences({ points: { mountCenter: [0, 0, 0] }, }); ```
 - `referenceNames()` — List named placement references carried by this group.

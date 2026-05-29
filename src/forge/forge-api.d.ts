@@ -2229,8 +2229,46 @@ declare class TrackedShape {
 	moveBy(x: number, y: number, z: number): TrackedShape;
 	/** Rotate around a named edge by angle in degrees */
 	rotateAroundEdge(edgeName: EdgeName, angleDeg: number): TrackedShape;
-	/** Rotate using Euler angles (degrees), topology is cleared */
-	rotate(x: number, y: number, z: number): TrackedShape;
+	/**
+	 * Rotate the shape. Topology is cleared. Two call forms (selected by the first argument):
+	 *  - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })`
+	 *  - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)`
+	 */
+	rotate(axisOrXDeg: [
+		number,
+		number,
+		number
+	] | number, angleOrYDeg?: number, optionsOrZDeg?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	} | number): TrackedShape;
+	/** Rotate around the X axis by the given angle in degrees. Topology is cleared. */
+	rotateX(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): TrackedShape;
+	/** Rotate around the Y axis by the given angle in degrees. Topology is cleared. */
+	rotateY(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): TrackedShape;
+	/** Rotate around the Z axis by the given angle in degrees. Topology is cleared. */
+	rotateZ(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): TrackedShape;
 	/** Apply a 4x4 transform matrix or Transform object. Topology is cleared. */
 	transform(m: Mat4 | Transform): TrackedShape;
 	/** Reorient so primary axis (Z) points along direction. Topology is cleared. */
@@ -2267,14 +2305,34 @@ declare class TrackedShape {
 		number,
 		number
 	], options?: RotateAroundToOptions): TrackedShape;
-	/** Scale the shape. Topology is cleared for non-uniform scale. */
+	/** Scale the shape from its bounding box center. Topology is cleared for non-uniform scale. */
 	scale(v: number | [
 		number,
 		number,
 		number
 	]): TrackedShape;
-	/** Mirror across a plane. Topology is cleared. */
+	/** Scale the shape from an explicit pivot point. Topology is cleared. */
+	scaleAround(pivot: [
+		number,
+		number,
+		number
+	], v: number | [
+		number,
+		number,
+		number
+	]): TrackedShape;
+	/** Mirror across a plane through the shape's bounding box center. Topology is cleared. */
 	mirror(normal: [
+		number,
+		number,
+		number
+	]): TrackedShape;
+	/** Mirror across a plane through an explicit point. Topology is cleared. */
+	mirrorThrough(point: [
+		number,
+		number,
+		number
+	], normal: [
 		number,
 		number,
 		number
@@ -2812,22 +2870,89 @@ declare class Shape {
 	moveToLocal(target: Shape | {
 		toShape(): Shape;
 	}, x: number, y: number, z: number): Shape;
-	/** Rotate using Euler angles in degrees around each axis. */
-	rotate(x: number, y: number, z: number): Shape;
+	/**
+	 * Rotate the shape.
+	 *
+	 * Two call forms are supported:
+	 *  - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })` — rotate around an arbitrary
+	 *    axis through the origin (or an optional pivot).
+	 *  - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)` — rotate by Euler angles around each axis.
+	 *
+	 * The form is selected by the first argument: an array is treated as an axis, three numbers as Euler angles.
+	 */
+	rotate(axisOrXDeg: [
+		number,
+		number,
+		number
+	] | number, angleOrYDeg?: number, optionsOrZDeg?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	} | number): Shape;
+	/** Rotate around the X axis by the given angle in degrees (optionally through a pivot point). */
+	rotateX(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): Shape;
+	/** Rotate around the Y axis by the given angle in degrees (optionally through a pivot point). */
+	rotateY(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): Shape;
+	/** Rotate around the Z axis by the given angle in degrees (optionally through a pivot point). */
+	rotateZ(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): Shape;
 	/** Apply a 4x4 affine transform matrix (column-major) or a Transform object. */
 	transform(m: Mat4 | Transform): Shape;
-	/** Scale the shape uniformly or per-axis. Accepts a single number or [x, y, z] array. */
+	/** Scale the shape uniformly or per-axis from the shape's bounding box center. Accepts a single number or [x, y, z] array. */
 	scale(v: number | [
 		number,
 		number,
 		number
 	]): Shape;
-	/** Mirror across a plane defined by its normal vector (does not need to be unit length). */
+	/** Scale the shape uniformly or per-axis from an explicit pivot point. */
+	scaleAround(pivot: [
+		number,
+		number,
+		number
+	], v: number | [
+		number,
+		number,
+		number
+	]): Shape;
+	/** Internal: scale about the world origin (the raw compile-plan scale step). */
+	private scaleFromOrigin;
+	/** Mirror across a plane through the shape's bounding box center, defined by its normal vector (need not be unit length). */
 	mirror(normal: [
 		number,
 		number,
 		number
 	]): Shape;
+	/** Mirror across a plane through an explicit point, defined by its normal vector (need not be unit length). */
+	mirrorThrough(point: [
+		number,
+		number,
+		number
+	], normal: [
+		number,
+		number,
+		number
+	]): Shape;
+	/** Internal: mirror across a plane through the world origin (the raw compile-plan mirror step). */
+	private mirrorThroughOrigin;
 	/**
 	 * Reorient a shape so its primary axis (Z) points along the given direction.
 	 * Useful for laying cylinders/extrusions along X or Y without thinking about Euler angles.
@@ -3041,7 +3166,46 @@ declare class ShapeGroup {
 		v?: number;
 		protrude?: number;
 	}): ShapeGroup;
-	rotate(x: number, y: number, z: number): ShapeGroup;
+	/**
+	 * Rotate the group. Two call forms (selected by the first argument):
+	 *  - Axis form (preferred): `rotate(axis, angleDeg, { pivot? })`
+	 *  - Legacy Euler form: `rotate(xDeg, yDeg, zDeg)`
+	 */
+	rotate(axisOrXDeg: [
+		number,
+		number,
+		number
+	] | number, angleOrYDeg?: number, optionsOrZDeg?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	} | number): ShapeGroup;
+	/** Rotate around the X axis by the given angle in degrees (optionally through a pivot point). */
+	rotateX(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): ShapeGroup;
+	/** Rotate around the Y axis by the given angle in degrees (optionally through a pivot point). */
+	rotateY(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): ShapeGroup;
+	/** Rotate around the Z axis by the given angle in degrees (optionally through a pivot point). */
+	rotateZ(angleDeg: number, options?: {
+		pivot?: [
+			number,
+			number,
+			number
+		];
+	}): ShapeGroup;
 	/**
 	 * Rotate around an arbitrary axis through a pivot point.
 	 * Sugar for: group.transform(Transform.rotationAxis(axis, angleDeg, pivot))
@@ -3087,12 +3251,34 @@ declare class ShapeGroup {
 	]): ShapeGroup;
 	/** Apply a 4x4 transform matrix or Transform object to all 3D children. */
 	transform(m: Mat4 | Transform): ShapeGroup;
+	/** Scale all children uniformly or per-axis from the group's bounding box center. */
 	scale(v: number | [
 		number,
 		number,
 		number
 	]): ShapeGroup;
+	/** Scale all children uniformly or per-axis from an explicit pivot point (keeps the group coherent). */
+	scaleAround(pivot: [
+		number,
+		number,
+		number
+	], v: number | [
+		number,
+		number,
+		number
+	]): ShapeGroup;
+	/** Mirror all children across a plane through the group's bounding box center, defined by its normal. */
 	mirror(normal: [
+		number,
+		number,
+		number
+	]): ShapeGroup;
+	/** Mirror all children across a plane through an explicit point, defined by its normal. */
+	mirrorThrough(point: [
+		number,
+		number,
+		number
+	], normal: [
 		number,
 		number,
 		number
