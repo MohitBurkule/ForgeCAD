@@ -347,6 +347,11 @@ export class TrackedShape {
     );
   }
 
+  /** Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. Topology is cleared. */
+  rotateAroundAxis(axis: [number, number, number], angleDeg: number, pivot: [number, number, number] = [0, 0, 0]): TrackedShape {
+    return this.rotateAround(axis, angleDeg, pivot);
+  }
+
   /** Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point. */
   rotateAroundTo(
     axis: [number, number, number],

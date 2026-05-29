@@ -420,6 +420,11 @@ export class ShapeGroup {
     return this.transform(Transform.rotationAxis(axis, angleDeg, pivot));
   }
 
+  /** Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. */
+  rotateAroundAxis(axis: [number, number, number], angleDeg: number, pivot: [number, number, number] = [0, 0, 0]): ShapeGroup {
+    return this.rotateAround(axis, angleDeg, pivot);
+  }
+
   /**
    * Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point.
    * ShapeGroup string points use built-in anchors only.

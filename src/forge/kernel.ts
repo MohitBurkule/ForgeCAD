@@ -1046,6 +1046,11 @@ export class Shape {
    * Equivalent to: translate(-pivot) → rotate around axis → translate(+pivot)
    */
   rotateAround(axis: [number, number, number], angleDeg: number, pivot: [number, number, number] = [0, 0, 0]): Shape {
+    return this.rotateAroundAxis(axis, angleDeg, pivot);
+  }
+
+  /** Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. */
+  rotateAroundAxis(axis: [number, number, number], angleDeg: number, pivot: [number, number, number] = [0, 0, 0]): Shape {
     const len = Math.sqrt(axis[0] ** 2 + axis[1] ** 2 + axis[2] ** 2) || 1;
     const normalizedAxis: [number, number, number] = [axis[0] / len, axis[1] / len, axis[2] / len];
     const matrix = rotationAroundAxisMatrix(normalizedAxis, angleDeg, pivot);
