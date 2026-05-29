@@ -330,6 +330,47 @@ export class PathBuilder {
   }
 
   /**
+   * Exact circular arc to (x, y) using a rational-quadratic / true-arc definition.
+   *
+   * Unlike a tessellated `arcTo`, this preserves the exact arc center and winding so
+   * that exact backends (OCCT) can emit a true cylindrical face. On sampled backends
+   * it tessellates the same exact arc geometry adaptively.
+   */
+  exactArcTo(x: number, y: number, opts: { radius?: number; clockwise?: boolean } = {}): this {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error('exactArcTo: x and y must be finite numbers');
+    }
+    const clockwise = opts.clockwise ?? false;
+    const dx = x - this.x;
+    const dy = y - this.y;
+    const chord = Math.hypot(dx, dy);
+    if (chord < 1e-9) throw new Error('exactArcTo: endpoint coincides with current position');
+
+    let radius: number;
+    if (opts.radius != null) {
+      if (!Number.isFinite(opts.radius) || opts.radius <= 0) {
+        throw new Error('exactArcTo: radius must be a positive finite number');
+      }
+      if (opts.radius < chord / 2 - 1e-9) {
+        throw new Error(`exactArcTo: radius ${opts.radius} too small for chord ${chord} (min ${chord / 2})`);
+      }
+      radius = opts.radius;
+    } else {
+      // Default to a semicircle on the chord (smallest unambiguous exact arc).
+      radius = chord / 2;
+    }
+
+    const [cx, cy] = arcCenter(this.x, this.y, x, y, radius, clockwise);
+    this.segs.push({ kind: 'arc', x, y, cx, cy, clockwise });
+    const [tdx, tdy] = arcEndTangent(x, y, cx, cy, clockwise);
+    this.x = x;
+    this.y = y;
+    this.dirX = tdx;
+    this.dirY = tdy;
+    return this;
+  }
+
+  /**
    * Draw an arc defined by center, radius, and angle range (no trig needed).
    * If the path has no segments yet, automatically moves to the arc start.
    * Positive sweep (startDeg < endDeg) = CCW, negative = CW.
