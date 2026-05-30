@@ -16,8 +16,8 @@ function normalizePolygonPoints(points: ([number, number] | Point2D)[]): [number
   return pts.map(([x, y]) => [x, y]);
 }
 
-/** Create a 2D rectangle. When center is true, the origin is at the rectangle center; otherwise at the bottom-left corner. */
-export function rect(width: number, height: number, center = false): Sketch {
+/** Create a 2D rectangle centered at the origin. Pass `center = false` to place the origin at the bottom-left corner. */
+export function rect(width: number, height: number, center = true): Sketch {
   return buildSketchFromCompileProfilePlan({ kind: 'rect', width, height, center, transforms: [] });
 }
 
@@ -32,7 +32,7 @@ export function circle2d(radius: number, segments?: number): Sketch {
 }
 
 /** Create a 2D rectangle with rounded corners. The radius is clamped to fit within the dimensions. */
-export function roundedRect(width: number, height: number, radius: number, center = false): Sketch {
+export function roundedRect(width: number, height: number, radius: number, center = true): Sketch {
   const r = Math.min(radius, width / 2, height / 2);
   return buildSketchFromCompileProfilePlan({
     kind: 'roundedRect',

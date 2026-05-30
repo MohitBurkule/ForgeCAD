@@ -10,14 +10,6 @@ export interface LevelSetInput {
   edgeLength: number;
 }
 
-interface SweepSegment {
-  a: Vec3;
-  t: Vec3;
-  x: Vec3;
-  y: Vec3;
-  len: number;
-}
-
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -128,6 +120,178 @@ function makeSweepFrame(tangent: Vec3, preferredUp: Vec3): { x: Vec3; y: Vec3 } 
   return { x, y };
 }
 
+function vec3Add(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+function vec3Lerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/** Rodrigues rotation of `v` about a unit `axis`, with rotation given by (cos, sin). */
+function rotateVector(v: Vec3, axis: Vec3, cosAngle: number, sinAngle: number): Vec3 {
+  const axisDot = vec3Dot(axis, v);
+  const cross = vec3Cross(axis, v);
+  return [
+    v[0] * cosAngle + cross[0] * sinAngle + axis[0] * axisDot * (1 - cosAngle),
+    v[1] * cosAngle + cross[1] * sinAngle + axis[1] * axisDot * (1 - cosAngle),
+    v[2] * cosAngle + cross[2] * sinAngle + axis[2] * axisDot * (1 - cosAngle),
+  ];
+}
+
+/** Make `xCandidate` orthonormal to `tangent`, falling back to a fresh frame when degenerate. */
+function orthonormalizeFrame(xCandidate: Vec3, tangent: Vec3, fallbackUp: Vec3): { x: Vec3; y: Vec3 } {
+  let x = vec3Sub(xCandidate, vec3Scale(tangent, vec3Dot(xCandidate, tangent)));
+  if (vec3Len(x) < 1e-8) return makeSweepFrame(tangent, fallbackUp);
+  x = vec3Norm(x);
+  const y = vec3Norm(vec3Cross(tangent, x));
+  return { x, y };
+}
+
+interface Frame {
+  origin: Vec3;
+  x: Vec3;
+  y: Vec3;
+  t: Vec3;
+}
+
+/**
+ * Rotation-minimizing (parallel-transport) frames along a polyline. Adjacent
+ * frames are related by the minimal rotation that aligns successive tangents,
+ * so the profile does not twist or flip between segments — this keeps the
+ * swept SDF continuous and prevents the level-set mesher from fragmenting the
+ * tube into disconnected bodies.
+ */
+function computeParallelTransportFrames(pathPoints: Vec3[], preferredUp: Vec3): Frame[] {
+  // Per-vertex tangents (averaged across incoming/outgoing for interior points).
+  const tangents: Vec3[] = pathPoints.map((_, i) => {
+    const incoming = i > 0 ? vec3Norm(vec3Sub(pathPoints[i], pathPoints[i - 1])) : undefined;
+    const outgoing = i < pathPoints.length - 1 ? vec3Norm(vec3Sub(pathPoints[i + 1], pathPoints[i])) : undefined;
+    if (incoming && outgoing) {
+      const blended = vec3Add(incoming, outgoing);
+      return vec3Len(blended) > 1e-8 ? vec3Norm(blended) : outgoing;
+    }
+    return incoming ?? outgoing ?? ([0, 0, 1] as Vec3);
+  });
+
+  const firstTangent = vec3Norm(tangents[0]);
+  let { x, y } = makeSweepFrame(firstTangent, preferredUp);
+  const frames: Frame[] = [{ origin: pathPoints[0], x, y, t: firstTangent }];
+  for (let i = 1; i < pathPoints.length; i += 1) {
+    const prev = frames[i - 1];
+    const tangent = vec3Norm(tangents[i]);
+    const axis = vec3Cross(prev.t, tangent);
+    const axisLen = vec3Len(axis);
+    const cosAngle = clamp(vec3Dot(prev.t, tangent), -1, 1);
+    let xCandidate: Vec3;
+    let yCandidate: Vec3;
+    if (axisLen > 1e-10) {
+      const unitAxis = vec3Scale(axis, 1 / axisLen);
+      xCandidate = rotateVector(prev.x, unitAxis, cosAngle, axisLen);
+      yCandidate = rotateVector(prev.y, unitAxis, cosAngle, axisLen);
+    } else if (cosAngle < -0.999999) {
+      ({ x: xCandidate, y: yCandidate } = makeSweepFrame(tangent, prev.y));
+    } else {
+      xCandidate = prev.x;
+      yCandidate = prev.y;
+    }
+    ({ x, y } = orthonormalizeFrame(xCandidate, tangent, yCandidate));
+    frames.push({ origin: pathPoints[i], x, y, t: tangent });
+  }
+  return frames;
+}
+
+interface FramedSegment {
+  a: Vec3;
+  t: Vec3;
+  len: number;
+  arcStart: number;
+  arcEnd: number;
+  frameA: Frame;
+  frameB: Frame;
+}
+
+interface SweepRuntime {
+  segments: FramedSegment[];
+  totalLen: number;
+}
+
+/** Build framed segments with parallel-transport frames and arc-length parameterization. */
+function buildSweepRuntime(pathPoints: Vec3[], up: Vec3): SweepRuntime {
+  // Drop zero-length duplicate points before framing.
+  const clean: Vec3[] = [pathPoints[0]];
+  for (let i = 1; i < pathPoints.length; i += 1) {
+    if (vec3Len(vec3Sub(pathPoints[i], clean[clean.length - 1])) > 1e-6) clean.push(pathPoints[i]);
+  }
+  if (clean.length < 2) throw new Error('sweep path has no non-zero segments');
+
+  const frames = computeParallelTransportFrames(clean, up);
+  const segments: FramedSegment[] = [];
+  let totalLen = 0;
+  for (let i = 0; i < clean.length - 1; i += 1) {
+    const a = clean[i];
+    const delta = vec3Sub(clean[i + 1], a);
+    const len = vec3Len(delta);
+    if (len < 1e-6) continue;
+    const t = vec3Scale(delta, 1 / len);
+    segments.push({ a, t, len, arcStart: totalLen, arcEnd: totalLen + len, frameA: frames[i], frameB: frames[i + 1] });
+    totalLen += len;
+  }
+  if (segments.length === 0) throw new Error('sweep path has no non-zero segments');
+  return { segments, totalLen };
+}
+
+/** Interpolate a frame within a segment by parameter alpha in [0, 1]. */
+function interpolateSweepFrame(segment: FramedSegment, alpha: number, origin: Vec3): Frame {
+  const tangentCandidate = vec3Lerp(segment.frameA.t, segment.frameB.t, alpha);
+  const tangent = vec3Len(tangentCandidate) > 1e-8 ? vec3Norm(tangentCandidate) : segment.t;
+  const xCandidate = vec3Lerp(segment.frameA.x, segment.frameB.x, alpha);
+  const fallbackUp = vec3Lerp(segment.frameA.y, segment.frameB.y, alpha);
+  const { x, y } = orthonormalizeFrame(xCandidate, tangent, fallbackUp);
+  return { origin, x, y, t: tangent };
+}
+
+interface NearestSweepPoint {
+  segment: FramedSegment;
+  alpha: number;
+  frame: Frame;
+  arcLength: number;
+  isStart: boolean;
+  isEnd: boolean;
+}
+
+/** Find the nearest point on the swept path to `point`, with its interpolated frame. */
+function findNearestSweepPoint(point: Vec3, segments: FramedSegment[]): NearestSweepPoint {
+  let bestIndex = 0;
+  let bestAlpha = 0;
+  let bestPoint: Vec3 = segments[0].a;
+  let bestDist2 = Infinity;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    const offset = vec3Sub(point, segment.a);
+    const along = clamp(vec3Dot(offset, segment.t), 0, segment.len);
+    const alpha = segment.len > 1e-9 ? along / segment.len : 0;
+    const pointOnPath = vec3Add(segment.a, vec3Scale(segment.t, along));
+    const delta = vec3Sub(point, pointOnPath);
+    const dist2 = vec3Dot(delta, delta);
+    if (dist2 < bestDist2) {
+      bestIndex = i;
+      bestAlpha = alpha;
+      bestPoint = pointOnPath;
+      bestDist2 = dist2;
+    }
+  }
+  const segment = segments[bestIndex];
+  return {
+    segment,
+    alpha: bestAlpha,
+    frame: interpolateSweepFrame(segment, bestAlpha, bestPoint),
+    arcLength: segment.arcStart + segment.len * bestAlpha,
+    isStart: bestIndex === 0 && bestAlpha <= 1e-6,
+    isEnd: bestIndex === segments.length - 1 && bestAlpha >= 1 - 1e-6,
+  };
+}
+
 export function buildLoftLevelSetInput(
   profilePolygons: Vec2[][][],
   heights: number[],
@@ -191,13 +355,6 @@ export function buildLoftLevelSetInput(
   };
 }
 
-interface VariableSweepSegment extends SweepSegment {
-  /** Cumulative arc-length parameter at the start of this segment (0..1 over total path length). */
-  tStart: number;
-  /** Cumulative arc-length parameter at the end of this segment (0..1 over total path length). */
-  tEnd: number;
-}
-
 export function buildVariableSweepLevelSetInput(
   sections: { t: number; polygons: Vec2[][] }[],
   pathPoints: Vec3[],
@@ -223,31 +380,8 @@ export function buildVariableSweepLevelSetInput(
     sdf: compilePolygonsSdf(s.polygons),
   }));
 
-  // Build segments with arc-length parameterization
-  const segments: VariableSweepSegment[] = [];
-  let totalLen = 0;
-  for (let index = 0; index < pathPoints.length - 1; index += 1) {
-    const a = pathPoints[index];
-    const b = pathPoints[index + 1];
-    const delta = vec3Sub(b, a);
-    const len = vec3Len(delta);
-    if (len < 1e-6) continue;
-    const tangent = vec3Scale(delta, 1 / len);
-    const frame = makeSweepFrame(tangent, options.up);
-    segments.push({ a, t: tangent, x: frame.x, y: frame.y, len, tStart: totalLen, tEnd: totalLen + len });
-    totalLen += len;
-  }
-  if (segments.length === 0) {
-    throw new Error('variableSweep path has no non-zero segments');
-  }
-
-  // Normalize tStart/tEnd to [0, 1]
-  if (totalLen > 1e-9) {
-    for (const seg of segments) {
-      seg.tStart /= totalLen;
-      seg.tEnd /= totalLen;
-    }
-  }
+  // Build framed segments with rotation-minimizing frames (no twist/flips).
+  const { segments, totalLen } = buildSweepRuntime(pathPoints, options.up);
 
   // Compute max profile radius across all sections for bounds padding
   let profileRadius = 0;
@@ -295,22 +429,27 @@ export function buildVariableSweepLevelSetInput(
     return f0 * (1 - blend) + f1 * blend;
   }
 
+  const startSeg = segments[0];
+  const endSeg = segments[segments.length - 1];
+
   return {
     sdf: (point) => {
-      let field = -Infinity;
-      for (const segment of segments) {
-        const v = vec3Sub(point, segment.a);
-        const w = vec3Dot(v, segment.t);
-        const u = vec3Dot(v, segment.x);
-        const q = vec3Dot(v, segment.y);
-
-        // Compute the arc-length t parameter for this point projected onto this segment
-        const wClamped = clamp(w, 0, segment.len);
-        const tAtPoint = segment.tStart + (wClamped / segment.len) * (segment.tEnd - segment.tStart);
-
-        const profileField = interpolatedSdf(u, q, tAtPoint);
-        const capField = Math.min(w, segment.len - w);
-        field = Math.max(field, Math.min(profileField, capField));
+      // Single nearest-segment query, then one profile evaluation. The
+      // continuous parallel-transport frame keeps the field smooth across
+      // joints, so no max-over-all-segments blend is needed.
+      const nearest = findNearestSweepPoint(point, segments);
+      const local = vec3Sub(point, nearest.frame.origin);
+      const u = vec3Dot(local, nearest.frame.x);
+      const q = vec3Dot(local, nearest.frame.y);
+      const tAtPoint = totalLen > 1e-9 ? nearest.arcLength / totalLen : 0;
+      let field = interpolatedSdf(u, q, tAtPoint);
+      // Flat end caps so the tube does not bleed past its endpoints.
+      if (nearest.isStart) {
+        const startCap = vec3Dot(vec3Sub(point, startSeg.frameA.origin), startSeg.frameA.t);
+        field = Math.min(field, startCap);
+      } else if (nearest.isEnd) {
+        const endCap = -vec3Dot(vec3Sub(point, endSeg.frameB.origin), endSeg.frameB.t);
+        field = Math.min(field, endCap);
       }
       return field;
     },
@@ -336,20 +475,7 @@ export function buildSweepLevelSetInput(
   }
 
   const profileSdf = compilePolygonsSdf(profilePolygons);
-  const segments: SweepSegment[] = [];
-  for (let index = 0; index < pathPoints.length - 1; index += 1) {
-    const a = pathPoints[index];
-    const b = pathPoints[index + 1];
-    const delta = vec3Sub(b, a);
-    const len = vec3Len(delta);
-    if (len < 1e-6) continue;
-    const tangent = vec3Scale(delta, 1 / len);
-    const frame = makeSweepFrame(tangent, options.up);
-    segments.push({ a, t: tangent, x: frame.x, y: frame.y, len });
-  }
-  if (segments.length === 0) {
-    throw new Error('sweep path has no non-zero segments');
-  }
+  const { segments } = buildSweepRuntime(pathPoints, options.up);
 
   let profileRadius = 0;
   for (const loop of profilePolygons) {
@@ -375,17 +501,24 @@ export function buildSweepLevelSetInput(
 
   const pad = Math.max(options.boundsPadding, profileRadius);
 
+  const startSeg = segments[0];
+  const endSeg = segments[segments.length - 1];
+
   return {
     sdf: (point) => {
-      let field = -Infinity;
-      for (const segment of segments) {
-        const v = vec3Sub(point, segment.a);
-        const w = vec3Dot(v, segment.t);
-        const u = vec3Dot(v, segment.x);
-        const q = vec3Dot(v, segment.y);
-        const profileField = profileSdf(u, q);
-        const capField = Math.min(w, segment.len - w);
-        field = Math.max(field, Math.min(profileField, capField));
+      // Single nearest-segment query + one profile evaluation, with smooth
+      // parallel-transport frames so the swept tube stays connected.
+      const nearest = findNearestSweepPoint(point, segments);
+      const local = vec3Sub(point, nearest.frame.origin);
+      const u = vec3Dot(local, nearest.frame.x);
+      const q = vec3Dot(local, nearest.frame.y);
+      let field = profileSdf(u, q);
+      if (nearest.isStart) {
+        const startCap = vec3Dot(vec3Sub(point, startSeg.frameA.origin), startSeg.frameA.t);
+        field = Math.min(field, startCap);
+      } else if (nearest.isEnd) {
+        const endCap = -vec3Dot(vec3Sub(point, endSeg.frameB.origin), endSeg.frameB.t);
+        field = Math.min(field, endCap);
       }
       return field;
     },

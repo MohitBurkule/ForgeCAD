@@ -57,15 +57,7 @@ export interface RouteUntil {
   until: number; // The coordinate value to clip to (y for vertical, x for horizontal)
 }
 
-export type RouteStep =
-  | RouteLine
-  | RouteCircle
-  | CircleId
-  | RouteTangent
-  | RouteFillet
-  | RouteTangentArc
-  | RoutePoint
-  | RouteUntil;
+export type RouteStep = RouteLine | RouteCircle | CircleId | RouteTangent | RouteFillet | RouteTangentArc | RoutePoint | RouteUntil;
 
 // ── Type guards ─────────────────────────────────────────────────────────────
 
@@ -172,6 +164,250 @@ declare module './builder' {
      * Returns `this` for chaining. Call `.solve()` after to get the Sketch.
      */
     route(steps: RouteStep[]): this;
+    /** Directional (turtle-graphics) route builder starting at (x, y). */
+    route(x: number, y: number): RouteBuilder;
+    /** Directional route builder starting at an existing point. */
+    route(startPt: PointId): RouteBuilder;
+  }
+}
+
+// ── Directional RouteBuilder (turtle-graphics path API) ──────────────────────
+
+type RouteSegment =
+  | { kind: 'line'; id: LineId; startPt: PointId; endPt: PointId }
+  | { kind: 'arc'; id: ArcId; startPt: PointId; endPt: PointId };
+
+/**
+ * Describe a sketch profile with directional moves (up/down/left/right/arcLeft/
+ * arcRight). Each move returns the entity ID (`LineId` or `ArcId`) so it can be
+ * referenced in `sk.*` constraints. Lengths are optional — when omitted the
+ * solver determines them from the surrounding constraints.
+ */
+export class RouteBuilder {
+  private sk: any;
+  private _startPt: PointId;
+  private cursorPt: PointId;
+  private cursorX: number;
+  private cursorY: number;
+  /** Travel direction in radians from +X. null until the first segment. */
+  private direction: number | null = null;
+  private segments: RouteSegment[] = [];
+  private lastLineId: LineId | null = null;
+  private lastArcId: ArcId | null = null;
+  private finished = false;
+
+  constructor(sk: any, startPt: PointId, x: number, y: number) {
+    this.sk = sk;
+    this._startPt = startPt;
+    this.cursorPt = startPt;
+    this.cursorX = x;
+    this.cursorY = y;
+  }
+
+  /** Vertical line going +Y. Length optional (solver determines it). */
+  up(length?: number): LineId {
+    return this._addLine(Math.PI / 2, length);
+  }
+  /** Vertical line going -Y. Length optional. */
+  down(length?: number): LineId {
+    return this._addLine(-Math.PI / 2, length);
+  }
+  /** Horizontal line going +X. Length optional. */
+  right(length?: number): LineId {
+    return this._addLine(0, length);
+  }
+  /** Horizontal line going -X. Length optional. */
+  left(length?: number): LineId {
+    return this._addLine(Math.PI, length);
+  }
+  /** Line at an arbitrary angle (degrees from +X). Length optional. */
+  lineAt(angleDeg: number, length?: number): LineId {
+    return this._addLine((angleDeg * Math.PI) / 180, length);
+  }
+  /** Line with solver-determined direction (tangent to previous arc / constraints). */
+  line(length?: number): LineId {
+    return this._addLine(this.direction ?? 0, length, false);
+  }
+  /** Line toward a specific point. Length defaults to the distance to that point. */
+  toward(x: number, y: number): LineId {
+    const dx = x - this.cursorX;
+    const dy = y - this.cursorY;
+    return this._addLine(Math.atan2(dy, dx), Math.hypot(dx, dy));
+  }
+
+  /** Tangent arc turning left relative to travel direction. */
+  arcLeft(radius?: number, sweepDegOrOpts?: number | { minSweep: number }): ArcId {
+    if (typeof sweepDegOrOpts === 'object') {
+      return this._addArc('left', radius, undefined, sweepDegOrOpts.minSweep);
+    }
+    return this._addArc('left', radius, sweepDegOrOpts);
+  }
+  /** Tangent arc turning right relative to travel direction. */
+  arcRight(radius?: number, sweepDegOrOpts?: number | { minSweep: number }): ArcId {
+    if (typeof sweepDegOrOpts === 'object') {
+      return this._addArc('right', radius, undefined, sweepDegOrOpts.minSweep);
+    }
+    return this._addArc('right', radius, sweepDegOrOpts);
+  }
+
+  /** Close the route with an explicit straight line back to the start point. */
+  close(): void {
+    this._ensureNotFinished();
+    if (this.cursorPt === this._startPt) {
+      this.finished = true;
+      this._registerLoop();
+      return;
+    }
+    const closingLine = this.sk.line(this.cursorPt, this._startPt);
+    this.segments.push({ kind: 'line', id: closingLine, startPt: this.cursorPt, endPt: this._startPt });
+    if (this.lastArcId) this.sk.lineTangentArc(closingLine, this.lastArcId, false);
+    if (this.segments.length > 1 && this.segments[0].kind === 'arc') {
+      this.sk.lineTangentArc(closingLine, this.segments[0].id, true);
+    }
+    this.finished = true;
+    this._registerLoop();
+  }
+
+  /**
+   * Close the route back to its start point and register it as a profile loop.
+   * No extra line segment is added; a coincident constraint joins the last
+   * point to the start, with tangency added for G1 smoothness at the junction.
+   */
+  done(): void {
+    this._ensureNotFinished();
+    if (this.cursorPt !== this._startPt && this.segments.length > 0) {
+      const sk = this.sk;
+      sk.coincident(this.cursorPt, this._startPt);
+      const cId = sk.constraints[sk.constraints.length - 1]?.id;
+      if (cId) sk._routeClosureConstraintId = cId;
+      const first = this.segments[0];
+      const last = this.segments[this.segments.length - 1];
+      if (last.kind === 'arc' && first.kind === 'arc') {
+        sk.arcTangentArc(last.id, first.id);
+      } else if (last.kind === 'arc' && first.kind === 'line') {
+        sk.lineTangentArc(first.id, last.id, false);
+      } else if (last.kind === 'line' && first.kind === 'arc') {
+        sk.lineTangentArc(last.id, first.id, true);
+      }
+    }
+    this.finished = true;
+    this._registerLoop();
+  }
+
+  /** PointId of the route's start point. */
+  get start(): PointId {
+    return this._startPt;
+  }
+  /** PointId of the current cursor (route's end). */
+  get end(): PointId {
+    return this.cursorPt;
+  }
+  /** Start point of a segment created by this route. */
+  startOf(segId: LineId | ArcId): PointId {
+    const seg = this.segments.find((s) => s.id === segId);
+    if (!seg) throw new Error(`RouteBuilder.startOf(): segment "${segId}" not found in this route`);
+    return seg.startPt;
+  }
+  /** End point of a segment created by this route. */
+  endOf(segId: LineId | ArcId): PointId {
+    const seg = this.segments.find((s) => s.id === segId);
+    if (!seg) throw new Error(`RouteBuilder.endOf(): segment "${segId}" not found in this route`);
+    return seg.endPt;
+  }
+
+  private _addLine(angle: number, length?: number, constrainDirection = true): LineId {
+    this._ensureNotFinished();
+    const sk = this.sk;
+    angle = this._normalizeAngle(angle);
+    const effectiveLength = length ?? 20;
+    const endX = this.cursorX + Math.cos(angle) * effectiveLength;
+    const endY = this.cursorY + Math.sin(angle) * effectiveLength;
+    const endPt = sk.point(endX, endY);
+    const lineId = sk.line(this.cursorPt, endPt);
+    if (constrainDirection) {
+      if (this._isVertical(angle)) sk.vertical(lineId);
+      else if (this._isHorizontal(angle)) sk.horizontal(lineId);
+      else sk.absoluteAngle(lineId, (angle * 180) / Math.PI);
+    }
+    if (length != null) sk.length(lineId, length);
+    if (this.lastArcId) sk.lineTangentArc(lineId, this.lastArcId, false);
+    this.segments.push({ kind: 'line', id: lineId, startPt: this.cursorPt, endPt });
+    this.lastLineId = lineId;
+    this.lastArcId = null;
+    this.cursorPt = endPt;
+    this.cursorX = endX;
+    this.cursorY = endY;
+    this.direction = angle;
+    return lineId;
+  }
+
+  private _addArc(turn: 'left' | 'right', radius?: number, sweepDeg?: number, seedSweepDeg?: number): ArcId {
+    this._ensureNotFinished();
+    const sk = this.sk;
+    const dir = this.direction ?? Math.PI / 2;
+    const isLeft = turn === 'left';
+    const effectiveRadius = radius ?? 10;
+    const seedOrSweep = seedSweepDeg ?? sweepDeg;
+    const sweepRad = seedOrSweep != null ? (seedOrSweep * Math.PI) / 180 : Math.PI / 2;
+    const perpAngle = isLeft ? dir + Math.PI / 2 : dir - Math.PI / 2;
+    const cx = this.cursorX + effectiveRadius * Math.cos(perpAngle);
+    const cy = this.cursorY + effectiveRadius * Math.sin(perpAngle);
+    const startAngle = Math.atan2(this.cursorY - cy, this.cursorX - cx);
+    const exitAngle = isLeft ? startAngle + sweepRad : startAngle - sweepRad;
+    const exitX = cx + effectiveRadius * Math.cos(exitAngle);
+    const exitY = cy + effectiveRadius * Math.sin(exitAngle);
+    const exitDir = isLeft ? dir + sweepRad : dir - sweepRad;
+    const centerPt = sk.point(cx, cy);
+    const exitPt = sk.point(exitX, exitY);
+    if (radius != null) {
+      const circleId = sk.circle(centerPt, effectiveRadius, true);
+      sk.radius(circleId, radius);
+      sk.pointOnCircle(this.cursorPt, circleId);
+      sk.pointOnCircle(exitPt, circleId);
+    }
+    const clockwise = !isLeft;
+    const arcId = sk.arcByCenter(centerPt, this.cursorPt, exitPt, clockwise);
+    if (sweepDeg != null && radius != null) {
+      sk.arcLength(arcId, ((sweepDeg * Math.PI) / 180) * radius);
+    }
+    if (this.lastLineId) sk.lineTangentArc(this.lastLineId, arcId, true);
+    else if (this.lastArcId) sk.arcTangentArc(this.lastArcId, arcId);
+    this.segments.push({ kind: 'arc', id: arcId, startPt: this.cursorPt, endPt: exitPt });
+    this.lastArcId = arcId;
+    this.lastLineId = null;
+    this.cursorPt = exitPt;
+    this.cursorX = exitX;
+    this.cursorY = exitY;
+    this.direction = this._normalizeAngle(exitDir);
+    return arcId;
+  }
+
+  private _ensureNotFinished(): void {
+    if (this.finished) {
+      throw new Error('RouteBuilder: cannot add segments after close() or done()');
+    }
+  }
+
+  private _registerLoop(): void {
+    if (this.segments.length === 0) return;
+    const profileSegs = this.segments.map((seg) =>
+      seg.kind === 'line' ? { kind: 'line' as const, line: seg.id } : { kind: 'arc' as const, arc: seg.id },
+    );
+    this.sk.addProfileLoop(profileSegs);
+  }
+
+  private _normalizeAngle(a: number): number {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a <= -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
+  private _isVertical(angle: number): boolean {
+    const a = this._normalizeAngle(angle);
+    return Math.abs(Math.abs(a) - Math.PI / 2) < 1e-9;
+  }
+  private _isHorizontal(angle: number): boolean {
+    const a = this._normalizeAngle(angle);
+    return Math.abs(a) < 1e-9 || Math.abs(Math.abs(a) - Math.PI) < 1e-9;
   }
 }
 
@@ -181,11 +417,7 @@ const proto = ConstrainedSketchBuilder.prototype as any;
  * Estimate a point on a circle in the direction of a target position.
  * Used for initial tangent point placement before the solver refines.
  */
-function estimatePointOnCircle(
-  cx: number, cy: number, r: number,
-  towardX: number, towardY: number,
-  offsetRad = 0,
-): [number, number] {
+function estimatePointOnCircle(cx: number, cy: number, r: number, towardX: number, towardY: number, offsetRad = 0): [number, number] {
   const dx = towardX - cx;
   const dy = towardY - cy;
   const d = Math.hypot(dx, dy);
@@ -197,13 +429,7 @@ function estimatePointOnCircle(
 /**
  * Estimate a fillet arc center position between two points.
  */
-function estimateFilletCenter(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  filletR: number,
-): [number, number] {
+function estimateFilletCenter(x1: number, y1: number, x2: number, y2: number, filletR: number): [number, number] {
   // Place center perpendicular to the midpoint, offset inward
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
@@ -220,7 +446,20 @@ function estimateFilletCenter(
   return [mx + px * h, my + py * h];
 }
 
-proto.route = function (this: any, steps: RouteStep[]): any {
+proto.route = function (this: any, stepsOrX: RouteStep[] | number | PointId, y?: number): any {
+  // ─── Directional RouteBuilder overloads ──────────────────────────────────
+  if (typeof stepsOrX === 'number') {
+    if (y == null) throw new Error('route(x, y): y coordinate is required');
+    const startPt = this.point(stepsOrX, y, true);
+    return new RouteBuilder(this, startPt, stepsOrX, y);
+  }
+  if (typeof stepsOrX === 'string') {
+    const pt = this.getPoint(stepsOrX);
+    if (!pt) throw new Error(`route(): point "${stepsOrX}" not found in sketch`);
+    return new RouteBuilder(this, stepsOrX, pt.x, pt.y);
+  }
+
+  const steps = stepsOrX;
   if (steps.length < 2) throw new Error('route(): need at least 2 steps');
 
   // ─── Resolve CircleId steps → RouteCircle using the builder's circles ──
@@ -237,9 +476,7 @@ proto.route = function (this: any, steps: RouteStep[]): any {
   // ─── Fast path: closed circle+fillet loops use analytical geometry ────
   // Detect: even-length, alternating circles and fillets
   const isClosedCircleFillet =
-    resolved.length >= 4 &&
-    resolved.length % 2 === 0 &&
-    resolved.every((s, i) => (i % 2 === 0 ? isRouteCircle(s) : isRouteFillet(s)));
+    resolved.length >= 4 && resolved.length % 2 === 0 && resolved.every((s, i) => (i % 2 === 0 ? isRouteCircle(s) : isRouteFillet(s)));
 
   if (isClosedCircleFillet) {
     // Convert to PerimeterStep format and use routePerimeter
@@ -268,14 +505,25 @@ proto.route = function (this: any, steps: RouteStep[]): any {
   // 4. Register the profile loop
 
   // Pre-compute centroid of structural circle centers for exterior arc direction selection
-  let centroidX = 0, centroidY = 0, circleCount = 0;
+  let centroidX = 0,
+    centroidY = 0,
+    circleCount = 0;
   for (const s of steps) {
-    const pos = isRouteCircle(s) ? s.center
-      : isRouteTangent(s) && typeof s.tangent === 'object' && 'center' in s.tangent ? s.tangent.center
-      : null;
-    if (pos) { centroidX += pos[0]; centroidY += pos[1]; circleCount++; }
+    const pos = isRouteCircle(s)
+      ? s.center
+      : isRouteTangent(s) && typeof s.tangent === 'object' && 'center' in s.tangent
+        ? s.tangent.center
+        : null;
+    if (pos) {
+      centroidX += pos[0];
+      centroidY += pos[1];
+      circleCount++;
+    }
   }
-  if (circleCount > 0) { centroidX /= circleCount; centroidY /= circleCount; }
+  if (circleCount > 0) {
+    centroidX /= circleCount;
+    centroidY /= circleCount;
+  }
 
   const segments: Array<{
     kind: 'line' | 'arc';
@@ -701,9 +949,7 @@ proto.route = function (this: any, steps: RouteStep[]): any {
   // ─── Phase 3: Register the profile loop ───────────────────────────────
   if (segments.length > 0) {
     const profileSegs = segments.map((seg) =>
-      seg.kind === 'line'
-        ? { kind: 'line' as const, line: seg.id as LineId }
-        : { kind: 'arc' as const, arc: seg.id as ArcId },
+      seg.kind === 'line' ? { kind: 'line' as const, line: seg.id as LineId } : { kind: 'arc' as const, arc: seg.id as ArcId },
     );
     this.addProfileLoop(profileSegs);
   }
