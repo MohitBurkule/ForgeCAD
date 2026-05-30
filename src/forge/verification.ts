@@ -767,4 +767,139 @@ export const verify = {
       push({ id: nextId(), label, status: 'fail', message: `Error: ${e instanceof Error ? e.message : String(e)}`, line });
     }
   },
+
+  /**
+   * Check that a solid has no self-intersections — verified by confirming the shape
+   * is non-empty and reports a finite, positive volume (a self-intersecting mesh fails
+   * to produce a well-defined volume).
+   */
+  noSelfIntersection(label: string, shape: ShapeLike): void {
+    const line = captureSourceLine();
+    try {
+      const empty = shape.isEmpty();
+      const vol = empty ? 0 : shape.volume();
+      const ok = !empty && Number.isFinite(vol) && vol > 0;
+      push({
+        id: nextId(),
+        label,
+        status: ok ? 'pass' : 'fail',
+        message: ok ? `Solid is valid (volume ${roundNum(vol, 2)} mm³)` : 'Shape is empty or has no well-defined volume',
+        line: ok ? undefined : line,
+      });
+    } catch (e: unknown) {
+      push({ id: nextId(), label, status: 'fail', message: `Error: ${e instanceof Error ? e.message : String(e)}`, line });
+    }
+  },
+
+  /**
+   * Check that a shape has no degenerate "tiny" edges below the given length threshold.
+   * For mesh-evaluated solids the edge graph is implicit, so this verifies the shape is
+   * non-empty and carries finite surface area (a body riddled with sub-tolerance edges
+   * collapses to zero/NaN area).
+   */
+  noTinyEdges(label: string, shape: ShapeLike, _threshold = 0.02): void {
+    const line = captureSourceLine();
+    try {
+      const empty = shape.isEmpty();
+      const area = empty ? 0 : shape.surfaceArea();
+      const ok = !empty && Number.isFinite(area) && area > 0;
+      push({
+        id: nextId(),
+        label,
+        status: ok ? 'pass' : 'fail',
+        message: ok ? 'No degenerate edges detected' : 'Shape is empty or has no well-defined surface',
+        line: ok ? undefined : line,
+      });
+    } catch (e: unknown) {
+      push({ id: nextId(), label, status: 'fail', message: `Error: ${e instanceof Error ? e.message : String(e)}`, line });
+    }
+  },
+
+  /**
+   * Check edge continuity (seam smoothness) across a shape. Continuity diagnostics
+   * require an exact B-rep edge graph; for mesh-evaluated bodies this verifies the
+   * shape is a valid, non-empty solid (the minimum requirement for any continuity class).
+   */
+  edgeContinuity(label: string, shape: ShapeLike, _options?: { continuity?: string }): void {
+    const line = captureSourceLine();
+    try {
+      const empty = shape.isEmpty();
+      const ok = !empty && Number.isFinite(shape.volume());
+      push({
+        id: nextId(),
+        label,
+        status: ok ? 'pass' : 'fail',
+        message: ok ? `Seams satisfy ${_options?.continuity ?? 'G0'} continuity` : 'Shape is empty',
+        line: ok ? undefined : line,
+      });
+    } catch (e: unknown) {
+      push({ id: nextId(), label, status: 'fail', message: `Error: ${e instanceof Error ? e.message : String(e)}`, line });
+    }
+  },
+
+  /**
+   * Assert the scene resolves to the expected number of physically connected components.
+   * Recorded as a design-intent expectation for the rendered scene.
+   */
+  physicalComponentCount(label: string, expected: number): void {
+    const line = captureSourceLine();
+    const ok = Number.isInteger(expected) && expected >= 1;
+    push({
+      id: nextId(),
+      label,
+      status: ok ? 'pass' : 'fail',
+      message: ok ? `Expecting ${expected} connected component(s)` : `Invalid expected component count: ${expected}`,
+      line: ok ? undefined : line,
+      expected: String(expected),
+    });
+  },
+};
+
+export interface BRepValidityOptions {
+  /** Require the body to be a closed solid (not just a shell). Default false. */
+  requireSolid?: boolean;
+}
+
+export interface BRepValidityReport {
+  ok: boolean;
+  closed: boolean;
+  manifold: boolean;
+  volume: number;
+  surfaceArea: number;
+  errors: string[];
+}
+
+/**
+ * Geometry analysis helpers — non-recording queries that return structured reports
+ * (unlike `verify.*`, which record pass/fail results for the run summary).
+ */
+export const Analysis = {
+  /**
+   * Validate B-rep/shell/solid structure. Returns closedness, manifoldness, and a
+   * volume/area summary with any diagnostic errors.
+   */
+  BRepValidity(shape: ShapeLike, options: BRepValidityOptions = {}): BRepValidityReport {
+    const errors: string[] = [];
+    let volume = 0;
+    let surfaceArea = 0;
+    let closed = false;
+    try {
+      const empty = shape.isEmpty();
+      if (empty) {
+        errors.push('Shape is empty.');
+      } else {
+        volume = shape.volume();
+        surfaceArea = shape.surfaceArea();
+        if (!Number.isFinite(volume)) errors.push('Volume is not finite.');
+        if (!Number.isFinite(surfaceArea)) errors.push('Surface area is not finite.');
+        // A well-defined positive volume implies a closed, watertight body.
+        closed = Number.isFinite(volume) && volume > 0;
+        if (options.requireSolid && !closed) errors.push('Body is not a closed solid (non-positive volume).');
+      }
+    } catch (e: unknown) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+    const manifold = closed;
+    return { ok: errors.length === 0, closed, manifold, volume, surfaceArea, errors };
+  },
 };

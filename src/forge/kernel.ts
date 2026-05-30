@@ -96,7 +96,7 @@ export { getWasm };
  * - 'occt'     — OCCT primary
  * - 'manifold' — Manifold only (original behaviour)
  */
-export type ActiveBackend = 'occt' | 'manifold';
+export type ActiveBackend = 'occt' | 'manifold' | 'truck';
 let _activeBackend: ActiveBackend = 'manifold';
 
 export function setActiveBackend(backend: ActiveBackend): void {
@@ -642,7 +642,10 @@ export function getShapeTopologyRewritePropagations(shape: Shape): TopologyRewri
 
 export function buildShapeFromCompilePlan(plan: ShapeCompilePlan, color?: string, geometryInfo?: Partial<GeometryInfo>): Shape {
   let backend: ShapeBackend;
-  if (_activeBackend === 'manifold') {
+  // 'truck' is the exact-surfacing backend selector. We lower its surfacing/mesh plans
+  // through the same evaluated-mesh path as Manifold (the exact NURBS/patch geometry is
+  // already sampled at build time); only an explicit 'occt' request uses OCCT lowering.
+  if (_activeBackend === 'manifold' || _activeBackend === 'truck') {
     backend = lowerShapeCompilePlanToShapeBackend(plan, getWasm());
   } else {
     backend = lowerShapeCompilePlanToOCCTBackend(plan);

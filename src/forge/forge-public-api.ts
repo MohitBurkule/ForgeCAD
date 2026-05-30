@@ -186,6 +186,9 @@ export {
   /** @concept primitive */ ngon,
   /** @concept promotion */ nurbs3d,
   /** @concept promotion */ nurbsSurface,
+  /** @concept promotion */ Helix,
+  /** @concept promotion */ HelixCurve,
+  /** @concept promotion */ Surface,
   /** @concept primitive */ Point2D,
   /** @concept primitive */ path,
   /** @concept topology */ pickEdge,
@@ -242,7 +245,8 @@ export type { EdgeRef, FaceRef } from './sketch/topology';
 
 // ── visual (C14) ────────────────────────────────────────────────────────────────
 export type { Spec, SpecResult } from './verification';
-/** @concept visual */ export { spec, verify } from './verification';
+/** @concept visual */ export { Analysis, spec, verify } from './verification';
+/** @concept edge-feature */ export { Blend } from './blend';
 
 // ─── Wrapper functions: differ from their kernel/sketch source signatures ─────
 //

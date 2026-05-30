@@ -31,6 +31,8 @@ export * from './hermiteCurve';
 export * from './layout';
 export * from './highlights';
 export * from './nurbs';
+export * from './helix';
+export * from './surface';
 export * from './operations';
 export * from './path';
 export * from './patterns';

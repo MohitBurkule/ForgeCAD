@@ -163,9 +163,11 @@ export { getCollectedSheetStock, resetSheetStock, sheetStock } from './export/sh
 export type { CuttingLayoutResult, GuillotineCut, PackedSheet } from './export/cuttingLayout';
 export { computeCuttingLayout, formatCutSequence, generateCuttingLayoutPdf } from './export/cuttingLayout';
 export * from './sketch';
+export { Blend, type BlendCornerYOptions } from './blend';
 export type { Mat4, RotateAroundToMode, RotateAroundToOptions, TransformInput, Vec3 } from './transform';
 export { composeChain, Transform } from './transform';
 export type { Spec, SpecResult, VerificationResult, VerificationStatus } from './verification';
+export { Analysis, type BRepValidityOptions, type BRepValidityReport } from './verification';
 export type {
   JointOverlayViewConfig,
   JointOverlayViewConfigOptions,
