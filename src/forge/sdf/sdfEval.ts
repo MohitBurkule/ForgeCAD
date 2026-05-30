@@ -271,6 +271,21 @@ export function compileSdfNode(node: SdfNode): SdfEvalFn {
       const t = node.thickness * 0.5;
       return (p) => abs(fn(p)) - t;
     }
+    case 'sdf:circularArray': {
+      const fn = compileSdfNode(node.child);
+      const da = TAU / node.count;
+      const off = node.offset;
+      return (p) => {
+        const [x, y, z] = p;
+        const r = length2(x, y);
+        // Fold the angular domain so only two adjacent copies are ever sampled.
+        let a = Math.atan2(y, x) % da;
+        if (a < 0) a += da;
+        const d1 = fn([cos(a - da) * r - off, sin(a - da) * r, z]);
+        const d2 = fn([cos(a) * r - off, sin(a) * r, z]);
+        return min(d1, d2);
+      };
+    }
     case 'sdf:displace': {
       const fn = compileSdfNode(node.child);
       const constEntries = Object.entries(node.constants ?? {});
@@ -546,6 +561,19 @@ export function estimateSdfBounds(node: SdfNode): SdfBounds {
       const b = estimateSdfBounds(node.child);
       const t = node.thickness * 0.5;
       return padBounds(b, t);
+    }
+    case 'sdf:circularArray': {
+      // Source is shifted +offset in X, then revolved about Z. The result fills
+      // a torus-like region; bound it with a cylinder of radius offset + child extent.
+      const b = estimateSdfBounds(node.child);
+      const childRadial = max(
+        length2(b.min[0], b.min[1]),
+        length2(b.max[0], b.max[1]),
+        length2(b.min[0], b.max[1]),
+        length2(b.max[0], b.min[1]),
+      );
+      const r = node.offset + childRadial;
+      return { min: [-r, -r, b.min[2]], max: [r, r, b.max[2]] };
     }
     case 'sdf:displace':
     case 'sdf:surfaceDisplace': {

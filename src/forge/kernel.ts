@@ -685,6 +685,14 @@ export interface ShapeMaterialProps {
   clearcoat?: number;
   /** Clearcoat roughness (0–1). Default: 0.4 */
   clearcoatRoughness?: number;
+  /** Light transmission for translucent/glass materials (0–1). */
+  transmission?: number;
+  /** Index of refraction for transmissive materials (e.g. 1.45 for glass). */
+  ior?: number;
+  /** Specular reflectivity for dielectrics (0–1). */
+  reflectivity?: number;
+  /** Specular intensity multiplier (0–1). */
+  specularIntensity?: number;
 }
 
 /**

@@ -260,6 +260,46 @@ function hasExplicitModuleExports(exportsValue: unknown, initialExportsRef: unkn
  * - Attach any `dim()` calls collected from the child onto the shape so subsequent
  *   transforms (translate, rotate, …) propagate them correctly.
  */
+/**
+ * Materialize raw SDF leaves in a script's return value into mesh-backed Shapes.
+ *
+ * Raw `SdfShape` values can be returned directly (single, in arrays, in plain
+ * objects, or as `{ name, sdf }` entries) for native preview. The CLI/headless
+ * path has no raymarch preview, so each leaf is meshed via `.toShape()` (which
+ * also applies its carried color/material). `{ name, sdf }` entries are rewritten
+ * to `{ name, shape }` so the existing named-item handling renders them.
+ */
+function normalizeSdfLeaves(value: unknown): unknown {
+  if (value instanceof sdf.SdfShape) return value.toShape();
+  if (Array.isArray(value)) return value.map(normalizeSdfLeaves);
+  if (value && typeof value === 'object' && !isOpaqueRenderable(value)) {
+    const obj = value as Record<string, unknown>;
+    // `{ name, sdf }` named SDF entry → `{ name, shape }`.
+    if (typeof obj.name === 'string' && obj.sdf instanceof sdf.SdfShape && obj.shape === undefined) {
+      const { sdf: leaf, ...rest } = obj;
+      return { ...rest, shape: (leaf as InstanceType<typeof sdf.SdfShape>).toShape() };
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(obj)) out[key] = normalizeSdfLeaves(v);
+    return out;
+  }
+  return value;
+}
+
+/** Renderable kernel objects that must not be walked/copied by SDF normalization. */
+function isOpaqueRenderable(value: object): boolean {
+  return (
+    value instanceof Shape ||
+    value instanceof Sketch ||
+    value instanceof TrackedShape ||
+    value instanceof ShapeGroup ||
+    value instanceof GCodeBuilder ||
+    value instanceof Assembly ||
+    value instanceof SolvedAssembly ||
+    value instanceof ImportedAssembly
+  );
+}
+
 function finalizeForgeJsImport(moduleExports: unknown, importedDims: DimensionDef[]): unknown {
   // Unwrap TrackedShape to plain Shape — matches require() import behaviour and ensures
   // that placement refs live on the Shape layer, not the TrackedShape topology layer.
@@ -466,6 +506,7 @@ function executeFile(
       boolParam,
       Param,
       sdf,
+      Sculpt: sdf.Sculpt,
       Shape,
       Sketch,
       lib: partLibrary,
@@ -729,7 +770,7 @@ export function runScript(
 
   try {
     return runWithForgeQuality(quality, () => {
-      const result = executeFile(code, fileName, allFiles, new Set(), {}, execOptions);
+      const result = normalizeSdfLeaves(executeFile(code, fileName, allFiles, new Set(), {}, execOptions));
 
       const objects: SceneObject[] = [];
       const shapeDimensions: DimensionDef[] = [];
