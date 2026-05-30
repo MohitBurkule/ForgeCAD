@@ -11,3 +11,4 @@ export * from './explode';
 export * from './pipe-routing';
 export * from './gears';
 export * from './fasteners';
+export * from './assemblies';
