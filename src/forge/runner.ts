@@ -36,7 +36,9 @@ import {
   cylinder,
   difference,
   type GeometryInfo,
+  getActiveBackend,
   getShapeDimensions,
+  setActiveBackend,
   intersection,
   sdf,
   Shape,
@@ -512,6 +514,8 @@ function executeFile(
       scene,
       verify,
       spec,
+      getActiveBackend,
+      setActiveBackend,
       gcode,
       GCodeBuilder,
     };
@@ -640,7 +644,10 @@ function executeFile(
     };
 
     const compiled = compileScript(code, fileName, options);
-    const bindingNames = Object.keys(runtimeBindings);
+    // Omit injected globals whose names the user re-declares at top level, so the user's
+    // declaration wins instead of throwing "Identifier 'x' has already been declared".
+    const shadowedNames = new Set(compiled.topLevelDeclarations);
+    const bindingNames = Object.keys(runtimeBindings).filter((name) => !shadowedNames.has(name));
     const bindingValues = bindingNames.map((name) => runtimeBindings[name]);
     const fn = new Function(
       'exports',
