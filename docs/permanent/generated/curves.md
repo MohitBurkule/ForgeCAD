@@ -203,6 +203,7 @@ A quintic Hermite curve in 3D space. Interpolates between two endpoints matching
 - `fillet()` — Round the last corner (the junction between the previous two segments) with a tangent arc of the given radius. Must be called after at least two line/arc segments that form a corner. The fillet trims back both segments and inserts a tangent arc. ```js path().moveTo(0,0).lineTo(10,0).lineTo(10,10).fillet(2).lineTo(0,10).close() ```
 - `chamfer()` — Chamfer the last corner with a straight cut of the given distance. ```js path().moveTo(0,0).lineTo(10,0).lineTo(10,10).chamfer(2).lineTo(0,10).close() ```
 - `mirror()` — Mirror all existing segments across an axis and append the mirrored copy in reverse order, creating a symmetric path. The axis passes through the current cursor position. 'y' mirrors across the local Y-axis (flips X), or `[nx, ny]` for an arbitrary axis direction. ```js // Build right half, mirror to get full symmetric profile path().moveTo(0,0).lineTo(10,0).lineTo(10,5).mirror('x').close() ```
+- `toPolyline()` — Return the open path as a sampled 2D polyline of `[x, y]` points.
 - `close()` — Close the path and return a filled Sketch. If the path contains multiple sub-paths (multiple moveTo calls), the first sub-path is the outer contour and subsequent sub-paths are holes (subtracted from the outer contour).
 - `closeOffset()` — Close the path and return an offset version of the filled Sketch. Positive delta expands outward, negative shrinks inward.
 - `stroke()` — stroke(width: number, join?: "Round" | "Square"): Sketch

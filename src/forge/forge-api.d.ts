@@ -2469,6 +2469,10 @@ declare class TrackedShape {
 	color(value: string | undefined): TrackedShape;
 	/** Set material properties (metalness, roughness, emissive, etc.). Returns a new TrackedShape. */
 	material(props: ShapeMaterialProps): TrackedShape;
+	/** Tag this shape with a name (surfaces as the child name when passed bare to group()). Returns a new TrackedShape. */
+	as(name: string): TrackedShape;
+	/** Author-supplied name set via {@link TrackedShape.as}. */
+	get shapeName(): string | undefined;
 	/** Access the underlying Shape for boolean ops etc */
 	toShape(): Shape;
 	/** Position this tracked shape relative to another using named 3D anchor points */
@@ -2909,7 +2913,10 @@ type SculptBlendArg = SdfShape | SdfShape[] | {
 	number,
 	number,
 	number
-];
+] | {
+	point: Vec3$1;
+	radius?: number;
+};
 
 declare const Sculpt: {
 	sphere: (radius: number) => SdfShape;
@@ -3003,7 +3010,11 @@ interface ShapeMaterialProps {
 declare class Shape {
 	colorHex: string | undefined;
 	materialProps: ShapeMaterialProps | undefined;
+	/** Optional author-supplied name (set via {@link Shape.as}). Surfaces as the child name in group(). */
+	shapeName: string | undefined;
 	constructor(payload: ShapeRuntimePayload, color?: string, geometryInfo?: Partial<GeometryInfo>);
+	/** Tag this shape with a name. The name surfaces as the child name when the shape is passed bare to group(). */
+	as(name: string): Shape;
 	/** Set the color of this shape (hex string, e.g. "#ff0000") */
 	setColor(value: string | undefined): Shape;
 	/** Alias for setColor */
@@ -7362,6 +7373,11 @@ declare class PathBuilder {
 	]): this;
 	/** Expand all segments into a flat tessellated polyline. */
 	private tessellate;
+	/** Return the open path as a sampled 2D polyline of `[x, y]` points. */
+	toPolyline(): [
+		number,
+		number
+	][];
 	/**
 	 * Close the path and return a filled Sketch.
 	 *
@@ -8167,6 +8183,586 @@ interface BlendCornerYOptions {
 declare const Blend: {
 	CornerY(options: BlendCornerYOptions): Shape;
 };
+type Vec3$10 = [
+	number,
+	number,
+	number
+];
+interface SuperEllipseOptions {
+	exponent?: number;
+	segments?: number;
+}
+declare function superEllipseProfile(width: number, depth: number, options?: SuperEllipseOptions): Sketch;
+declare function ovalProfile(width: number, depth: number): Sketch;
+declare function circleProfile(diameter: number, segments?: number): Sketch;
+declare function roundedRectProfile(width: number, depth: number, radius: number): Sketch;
+interface ProductMaterial {
+	color?: string;
+	material: Record<string, unknown>;
+}
+declare const ProductMaterials: {
+	mattePlastic: (input?: string | {
+		color?: string;
+	}) => ProductMaterial;
+	softRubber: (input?: string | {
+		color?: string;
+	}) => ProductMaterial;
+	brushedSteel: (input?: string | {
+		color?: string;
+	}) => ProductMaterial;
+	glossyPlastic: (input?: string | {
+		color?: string;
+	}) => ProductMaterial;
+	transparent: (input?: string | {
+		color?: string;
+	}) => ProductMaterial;
+};
+declare function applyMaterial(shape: Shape, preset: ProductMaterial | undefined): Shape;
+interface StationSpec {
+	name: string;
+	center: Vec3$10;
+	profile: Sketch;
+}
+declare class ProductStationBuilder {
+	readonly name: string;
+	private center;
+	private profileSketch;
+	constructor(name: string);
+	at(point: Vec3$10): this;
+	x(value: number): this;
+	y(value: number): this;
+	z(value: number): this;
+	superEllipse(width: number, depth: number, options?: SuperEllipseOptions): this;
+	oval(width: number, depth: number): this;
+	roundedRect(width: number, depth: number, radius: number): this;
+	circle(diameter: number): this;
+	custom(sketch: Sketch): this;
+	crown(_amount: number): this;
+	toSpec(): StationSpec;
+}
+type ProductSkinSide = "left" | "right" | "front" | "rear" | "back" | "top" | "bottom";
+type ProductAxis = "X" | "Y" | "Z";
+interface SurfaceFrame {
+	point: Vec3$10;
+	normal: Vec3$10;
+}
+interface ProductSurfaceRef {
+	side: ProductSkinSide;
+	u: number;
+	v: number;
+	offset: number;
+	frame(options?: {
+		offset?: number;
+	}): SurfaceFrame;
+}
+/** A built product skin: a lofted shell plus its station/ref metadata. */
+declare class ProductSkin {
+	readonly name: string;
+	private readonly shape;
+	private readonly stations;
+	private readonly axis;
+	private readonly material;
+	private readonly namedRefs;
+	constructor(name: string, shape: Shape, stations: StationSpec[], axis: ProductAxis, material: ProductMaterial | undefined, namedRefs: Record<string, {
+		side: ProductSkinSide;
+		u: number;
+		v: number;
+		offset: number;
+	}>);
+	toShape(): Shape;
+	/** Boolean-union structural details into the skin body, returning the combined Shape. */
+	integrate(...details: Array<Shape | {
+		toShape(): Shape;
+	}>): Shape;
+	/** Create a group containing this skin plus named child details. */
+	with(children: Record<string, Shape | ShapeGroup>): ShapeGroup;
+	private bounds;
+	/** Interpolate a center point at normalized v along the axis. */
+	private axisIndex;
+	uv(side: ProductSkinSide, u: number, v: number): ProductSurfaceRef;
+	ref(name: string): ProductSurfaceRef;
+	surface(side: ProductSkinSide): ProductSurfaceBuilder;
+	private makeRef;
+}
+declare class ProductSurfaceBuilder {
+	private readonly skin;
+	private readonly side;
+	constructor(skin: ProductSkin, side: ProductSkinSide);
+	path(): SurfacePathBuilder;
+	ref(u: number, v: number): ProductSurfaceRef;
+	uv(u: number, v: number): ProductSurfaceRef;
+	ribbon(name: string, points: Array<{
+		u: number;
+		v: number;
+	}>): ProductRibbonBuilder;
+}
+declare class ProductSkinBuilder {
+	readonly name: string;
+	private axisValue;
+	private stationSpecs;
+	private materialValue;
+	private colorValue;
+	private edgeLengthValue;
+	private namedRefs;
+	constructor(name: string);
+	axis(axis: ProductAxis): this;
+	stations(stations: ProductStationBuilder[]): this;
+	rails(_rails: Record<string, unknown>): this;
+	refs(refs: Record<string, {
+		side: ProductSkinSide;
+		u?: number;
+		v?: number;
+		offset?: number;
+	}>): this;
+	ref(name: string, spec: {
+		side: ProductSkinSide;
+		u?: number;
+		v?: number;
+		offset?: number;
+	}): this;
+	uv(side: ProductSkinSide, u: number, v: number): {
+		side: ProductSkinSide;
+		u: number;
+		v: number;
+		offset: number;
+	};
+	material(mat: ProductMaterial): this;
+	color(color: string): this;
+	edgeLength(value: number): this;
+	wall(_thickness: number): this;
+	build(): ProductSkin;
+}
+declare class ProductRibbonBuilder {
+	readonly name: string;
+	private skin;
+	private points;
+	private side;
+	private explicitRefs;
+	private widthValue;
+	private thicknessValue;
+	private offsetValue;
+	private samplesValue;
+	private materialValue;
+	private colorValue;
+	constructor(name: string);
+	on(skin: ProductSkin, points: Array<{
+		u: number;
+		v: number;
+	}>, side?: ProductSkinSide): this;
+	fromRefs(refs: ProductSurfaceRef[]): this;
+	width(value: number): this;
+	thickness(value: number): this;
+	offset(value: number): this;
+	samples(value: number): this;
+	widthSamples(_value: number): this;
+	resolution(_value: number): this;
+	material(mat: ProductMaterial): this;
+	color(color: string): this;
+	private pathPoints;
+	build(): Shape;
+	buildWithDiagnostics(): {
+		shape: Shape;
+		diagnostics: Record<string, unknown>;
+	};
+}
+declare class ProductSpoutBuilder {
+	readonly name: string;
+	private sourceRef;
+	private sectionProfiles;
+	private projectionValue;
+	private edgeLengthValue;
+	private materialValue;
+	private colorValue;
+	constructor(name: string);
+	from(ref: ProductSurfaceRef): this;
+	sections(profiles: Sketch[]): this;
+	projection(value: number): this;
+	edgeLength(value: number): this;
+	material(mat: ProductMaterial): this;
+	color(color: string): this;
+	build(): Shape;
+	attach(options?: {
+		inset?: number;
+		offset?: number;
+	}): Shape;
+}
+interface HandleFeature {
+	grip: Shape;
+	upperPad: Shape;
+	lowerPad: Shape;
+}
+declare class ProductHandleBuilder {
+	readonly name: string;
+	private upper;
+	private lower;
+	private spinePoints;
+	private gripProfile;
+	private materialValue;
+	private padMaterialValue;
+	private edgeLengthValue;
+	constructor(name: string);
+	between(upper: ProductSurfaceRef, lower: Vec3$10): this;
+	spine(points: Vec3$10[]): this;
+	grip(profile: Sketch): this;
+	material(mat: ProductMaterial): this;
+	padMaterial(mat: ProductMaterial): this;
+	edgeLength(value: number): this;
+	build(): HandleFeature;
+}
+declare class ProductPanelBuilder {
+	readonly name: string;
+	private profileSketch;
+	private thicknessValue;
+	private materialValue;
+	private colorValue;
+	constructor(name: string);
+	rounded(width: number, height: number, radius: number): this;
+	oval(width: number, height: number): this;
+	profile(sketch: Sketch): this;
+	thickness(value: number): this;
+	material(mat: ProductMaterial): this;
+	color(color: string): this;
+	build(): Shape;
+	attachTo(ref: ProductSurfaceRef, options?: {
+		thickness?: number;
+		offset?: number;
+		inset?: number;
+	}): Shape;
+}
+declare const Product: {
+	skin: (name: string) => ProductSkinBuilder;
+	station: (name: string) => ProductStationBuilder;
+	ribbon: (name: string) => ProductRibbonBuilder;
+	spout: (name: string) => ProductSpoutBuilder;
+	handle: (name: string) => ProductHandleBuilder;
+	panel: (name: string) => ProductPanelBuilder;
+	surface: (skin: ProductSkin, side: ProductSkinSide) => ProductSurfaceBuilder;
+	ref: (skin: ProductSkin, query: {
+		side: ProductSkinSide;
+		u?: number;
+		v?: number;
+	}) => ProductSurfaceRef;
+	materials: {
+		mattePlastic: (input?: string | {
+			color?: string;
+		}) => ProductMaterial;
+		softRubber: (input?: string | {
+			color?: string;
+		}) => ProductMaterial;
+		brushedSteel: (input?: string | {
+			color?: string;
+		}) => ProductMaterial;
+		glossyPlastic: (input?: string | {
+			color?: string;
+		}) => ProductMaterial;
+		transparent: (input?: string | {
+			color?: string;
+		}) => ProductMaterial;
+	};
+	applyMaterial: typeof applyMaterial;
+	scenePreset: (_name: string) => void;
+	rail: {
+		bezier: (points: Vec3$10[], options?: {
+			name?: string;
+		}) => {
+			points: Vec3$10[];
+			name?: string;
+		};
+		nurbs: (points: Vec3$10[], options?: {
+			name?: string;
+		}) => {
+			points: Vec3$10[];
+			name?: string;
+		};
+		polyline: (points: Vec3$10[], options?: {
+			name?: string;
+		}) => {
+			points: Vec3$10[];
+			name?: string;
+		};
+	};
+	profiles: {
+		superEllipse: typeof superEllipseProfile;
+		roundedRect: typeof roundedRectProfile;
+		oval: typeof ovalProfile;
+		circle: typeof circleProfile;
+	};
+	ovalProfile: typeof ovalProfile;
+	roundedRectProfile: typeof roundedRectProfile;
+	circleProfile: typeof circleProfile;
+	superEllipseProfile: typeof superEllipseProfile;
+	place: (detail: Shape | ShapeGroup, ref: ProductSurfaceRef, options?: {
+		offset?: number;
+		inset?: number;
+	}) => Shape | ShapeGroup;
+	landing: (name: string, radius?: number, material?: ProductMaterial) => Shape;
+};
+interface LoftStation {
+	profile: Sketch;
+	position: number;
+}
+interface LoftGuideRail {
+	side: string;
+	points: Vec3$10[];
+}
+declare const Loft: {
+	station: (profile: Sketch, position: number) => LoftStation;
+	leftRail: (points: Vec3$10[]) => LoftGuideRail;
+	rightRail: (points: Vec3$10[]) => LoftGuideRail;
+	frontRail: (points: Vec3$10[]) => LoftGuideRail;
+	backRail: (points: Vec3$10[]) => LoftGuideRail;
+	centerRail: (points: Vec3$10[]) => LoftGuideRail;
+	pathOnXz: (path: unknown, y?: number) => Vec3$10[];
+	pathOnYz: (path: unknown, x?: number) => Vec3$10[];
+	pathOnXy: (path: unknown, z?: number) => Vec3$10[];
+	withGuideRails: (stations: LoftStation[], _rails: LoftGuideRail[], options?: {
+		samples?: number;
+		edgeLength?: number;
+	}) => Shape;
+};
+interface SurfaceAnchor {
+	point: Vec3$10;
+}
+type CarrierSurface = CylinderCarrier | PlaneCarrier | ProductSkinCarrier;
+declare class CylinderCarrier {
+	readonly name: string;
+	private diameterValue;
+	private heightValue;
+	private clearanceValue;
+	private centerValue;
+	readonly kind: "cylinder";
+	constructor(name: string);
+	diameter(value: number): this;
+	radius(value: number): this;
+	height(value: number): this;
+	clearance(value: number): this;
+	center(point: Vec3$10): this;
+	private effectiveRadius;
+	pointAt(coordinate: {
+		angle?: number;
+		z?: number;
+		offset?: number;
+	}): Vec3$10;
+	anchorFromAngle(angle: number, offset?: number): SurfaceAnchor;
+	back(options?: {
+		offset?: number;
+		z?: number;
+	}): SurfaceAnchor;
+	front(options?: {
+		offset?: number;
+		z?: number;
+	}): SurfaceAnchor;
+	left(options?: {
+		offset?: number;
+		z?: number;
+	}): SurfaceAnchor;
+	right(options?: {
+		offset?: number;
+		z?: number;
+	}): SurfaceAnchor;
+	path(): SurfacePathBuilder;
+}
+declare class PlaneCarrier {
+	readonly name: string;
+	private widthValue;
+	private heightValue;
+	private originValue;
+	readonly kind: "plane";
+	constructor(name: string);
+	size(width: number, height: number): this;
+	origin(point: Vec3$10): this;
+	pointAt(coordinate: {
+		x?: number;
+		y?: number;
+		offset?: number;
+	}): Vec3$10;
+	anchor(x?: number, y?: number, options?: {
+		offset?: number;
+	}): SurfaceAnchor;
+	path(): SurfacePathBuilder;
+}
+declare class ProductSkinCarrier {
+	readonly skin: ProductSkin;
+	readonly kind: "productSkin";
+	readonly name: string;
+	private side;
+	constructor(skin: ProductSkin);
+	surface(side: ProductSkinSide): ProductSkinCarrier;
+	pointAt(coordinate: {
+		side?: ProductSkinSide;
+		u?: number;
+		v?: number;
+		offset?: number;
+	}): Vec3$10;
+	path(): SurfacePathBuilder;
+}
+declare const Carrier: {
+	cylinder: (name: string) => CylinderCarrier;
+	plane: (name: string) => PlaneCarrier;
+	productSkin: (skin: ProductSkin) => ProductSkinCarrier;
+};
+type SurfaceCoordinate = {
+	angle?: number;
+	z?: number;
+	u?: number;
+	v?: number;
+	x?: number;
+	y?: number;
+	offset?: number;
+};
+declare class SurfacePath {
+	readonly carrier: CarrierSurface;
+	readonly points: SurfaceCoordinate[];
+	private readonly side?;
+	constructor(carrier: CarrierSurface, points: SurfaceCoordinate[], side?: ProductSkinSide | undefined);
+	worldPoints(): Vec3$10[];
+}
+declare class SurfacePathBuilder {
+	readonly carrier: CarrierSurface;
+	private readonly side?;
+	private pts;
+	constructor(carrier: CarrierSurface, side?: ProductSkinSide | undefined);
+	from(coordinate: SurfaceCoordinate): this;
+	through(coordinate: SurfaceCoordinate): this;
+	to(coordinate: SurfaceCoordinate): this;
+	around(input: {
+		z: number;
+		fromAngle: number;
+		toAngle: number;
+		offset?: number;
+	}): this;
+	build(): SurfacePath;
+}
+interface MemberFeature {
+	kind: string;
+	[key: string]: unknown;
+}
+declare class RoundedSlotBuilder {
+	private readonly input;
+	private travel;
+	private position;
+	constructor(input: {
+		length: number;
+		width: number;
+	});
+	verticalTravel(value: number): this;
+	at(input: {
+		along?: number;
+		across?: number;
+		z?: number;
+	}): this;
+	named(name: string): MemberFeature;
+	toFeature(name?: string): MemberFeature;
+}
+declare class CounterboreBuilder {
+	private readonly input;
+	private position;
+	constructor(input: {
+		diameter: number;
+		clearanceDiameter: number;
+		depth: number;
+	});
+	at(input: {
+		along?: number;
+		across?: number;
+		z?: number;
+	}): this;
+	named(name: string): MemberFeature;
+	toFeature(name?: string): MemberFeature;
+}
+declare const Slot: {
+	rounded: (input: {
+		length: number;
+		width: number;
+	}) => RoundedSlotBuilder;
+};
+declare const Counterbore: {
+	cylindrical: (input: {
+		diameter: number;
+		clearanceDiameter: number;
+		depth: number;
+	}) => CounterboreBuilder;
+};
+declare const Ribs: {
+	repeated: (input: {
+		count: number;
+		height: number;
+	}) => MemberFeature;
+};
+interface MemberSection {
+	width?: number;
+	thickness: number;
+	edgeRadius?: number;
+	material?: ProductMaterial;
+}
+interface MemberSpec {
+	name: string;
+	type: "band" | "plate";
+	path?: SurfacePath;
+	anchor?: SurfaceAnchor;
+	size?: [
+		number,
+		number
+	];
+	section?: MemberSection;
+	mirrorOf?: string;
+	profileDepth?: number;
+}
+declare class SurfaceMemberBuilder {
+	private readonly body;
+	private spec;
+	constructor(body: SurfaceBodyBuilder, name: string);
+	band(): this;
+	plate(): this;
+	at(anchor: SurfaceAnchor): this;
+	size(width: number, height: number): this;
+	path(path: SurfacePath | SurfacePathBuilder): this;
+	section(section: MemberSection): this;
+	cap(_style: string): this;
+	slot(_name: string, _feature: MemberFeature | RoundedSlotBuilder): this;
+	cutout(_name: string, _feature: MemberFeature | RoundedSlotBuilder): this;
+	counterbore(_name: string, _feature: MemberFeature | CounterboreBuilder): this;
+	features(_features: MemberFeature | MemberFeature[]): this;
+	profile(_name: string, options?: {
+		depth?: number;
+		height?: number;
+	}): this;
+	anchorAt(_name: string, _coordinate: unknown): this;
+	mirrorOf(memberName: string): SurfaceBodyBuilder;
+	member(name: string): SurfaceMemberBuilder;
+	join(from: string, to: string | string[]): SurfaceJoinBuilder;
+	autoJoinAtSharedAnchors(): SurfaceBodyBuilder;
+	build(): Shape | ShapeGroup;
+	private flushed;
+	private flush;
+}
+declare class SurfaceJoinBuilder {
+	private readonly body;
+	constructor(body: SurfaceBodyBuilder);
+	betweenAnchors(_from: string, _to: string): this;
+	blend(_input?: {
+		radius?: number;
+		style?: string;
+	}): SurfaceBodyBuilder;
+}
+declare class SurfaceBodyBuilder {
+	readonly name: string;
+	private carrierValue;
+	private members;
+	constructor(name: string);
+	carrier(carrier: CarrierSurface): this;
+	member(name: string): SurfaceMemberBuilder;
+	addMember(spec: MemberSpec): void;
+	join(_from: string, _to: string | string[]): SurfaceJoinBuilder;
+	autoJoinAtSharedAnchors(): this;
+	private buildMember;
+	private resolveMembers;
+	build(): Shape | ShapeGroup;
+}
+declare function SurfaceBody(name: string): SurfaceBodyBuilder;
+declare const SurfaceMembers: {
+	Body: typeof SurfaceBody;
+};
 type _ShapeOperand = Shape | TrackedShape;
 /**
  * Create a rectangular box with named faces and edges.
@@ -8393,6 +8989,10 @@ declare namespace sdf {
   	radius?: number;
   	/** Smooth-union blend radius between segments. Default: derived from radius. */
   	blend?: number;
+  	/** Smoothing samples per segment (accepted for path-authoring parity; advisory). */
+  	segments?: number;
+  	/** Catmull-Rom tension (accepted for path-authoring parity; advisory). */
+  	tension?: number;
   }
   export type SdfBoundsInput = SdfBounds | [
   export interface SdfFunctionOptions {

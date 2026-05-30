@@ -1351,6 +1351,64 @@ interface Spec {
 faceProfile(shape: Shape | TrackedShape, face: FaceSelector): Sketch
 ```
 
+#### `superEllipseProfile()`
+
+```ts
+superEllipseProfile(width: number, depth: number, options?: SuperEllipseOptions): Sketch
+```
+
+<details><summary><code>SuperEllipseOptions</code></summary>
+
+```ts
+interface SuperEllipseOptions {
+  exponent?: number;
+  segments?: number;
+}
+```
+
+</details>
+
+#### `ovalProfile()`
+
+```ts
+ovalProfile(width: number, depth: number): Sketch
+```
+
+#### `circleProfile()`
+
+```ts
+circleProfile(diameter: number, segments?: number): Sketch
+```
+
+#### `roundedRectProfile()`
+
+```ts
+roundedRectProfile(width: number, depth: number, radius: number): Sketch
+```
+
+#### `applyMaterial()`
+
+```ts
+applyMaterial(shape: Shape, preset: ProductMaterial | undefined): Shape
+```
+
+<details><summary><code>ProductMaterial</code></summary>
+
+```ts
+interface ProductMaterial {
+  color?: string;
+  material: Record<string, unknown>;
+}
+```
+
+</details>
+
+#### `SurfaceBody()`
+
+```ts
+SurfaceBody(name: string): SurfaceBodyBuilder
+```
+
 #### `torus()`
 
 ```ts
@@ -1557,9 +1615,11 @@ Core 3D solid shape. All operations are immutable and return new shapes. Support
 | Property | Type | Description |
 |----------|------|-------------|
 | `materialProps` | `ShapeMaterialProps | undefined` | — |
+| `shapeName` | `string | undefined` | Optional author-supplied name (set via {@link Shape.as}). Surfaces as the child name in group(). |
 
 **Methods:**
 
+- `as()` — Tag this shape with a name. The name surfaces as the child name when the shape is passed bare to group().
 - `setColor()` — Set the color of this shape (hex string, e.g. "#ff0000")
 - `color()` — Alias for setColor
 - `material()` — Set material properties for this shape's visual appearance. Returns a new Shape with the specified material properties merged. ```js box(50, 50, 50).material({ metalness: 0.9, roughness: 0.1 }); sphere(30).material({ emissive: '#ff6b35', emissiveIntensity: 2 }); cylinder(40, 20).material({ opacity: 0.3 }); ```
@@ -1676,6 +1736,8 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `mirrorThrough()` — Mirror across a plane through an explicit point. Topology is cleared.
 - `color()` — Set the display color. Returns a new TrackedShape.
 - `material()` — Set material properties (metalness, roughness, emissive, etc.). Returns a new TrackedShape.
+- `as()` — Tag this shape with a name (surfaces as the child name when passed bare to group()). Returns a new TrackedShape.
+- `get shapeName()` — Author-supplied name set via {@link TrackedShape.as}.
 - `toShape()` — Access the underlying Shape for boolean ops etc
 - `attachTo()` — Position this tracked shape relative to another using named 3D anchor points
 - `onFace()` — Place this shape on a face of a parent shape. See Shape.onFace() for full documentation.
@@ -1838,6 +1900,307 @@ Metadata-bearing helical curve around the Z axis. Use `Helix.path(...)` for samp
 - `pointAt()` — Exact analytic point on the helix at t in [0, 1].
 - `tangentAt()` — Exact analytic unit tangent at t in [0, 1].
 - `length()` — Exact closed-form helix arc length.
+
+### `ProductStationBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `at()` — at(point: Vec3$10): this
+- `x()` — x(value: number): this
+- `y()` — y(value: number): this
+- `z()` — z(value: number): this
+- `superEllipse()` — superEllipse(width: number, depth: number, options?: SuperEllipseOptions): this
+- `oval()` — oval(width: number, depth: number): this
+- `roundedRect()` — roundedRect(width: number, depth: number, radius: number): this
+- `circle()` — circle(diameter: number): this
+- `custom()` — custom(sketch: Sketch): this
+- `crown()` — crown(_amount: number): this
+- `toSpec()` — toSpec(): StationSpec
+
+### `ProductSkin`
+
+A built product skin: a lofted shell plus its station/ref metadata.
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `toShape()` — toShape(): Shape
+- `integrate()` — Boolean-union structural details into the skin body, returning the combined Shape.
+- `with()` — Create a group containing this skin plus named child details.
+- `uv()` — uv(side: ProductSkinSide, u: number, v: number): ProductSurfaceRef
+- `ref()` — ref(name: string): ProductSurfaceRef
+- `surface()` — surface(side: ProductSkinSide): ProductSurfaceBuilder
+
+### `ProductSurfaceBuilder`
+
+**Methods:**
+
+- `path()` — path(): SurfacePathBuilder
+- `ref()` — ref(u: number, v: number): ProductSurfaceRef
+- `uv()` — uv(u: number, v: number): ProductSurfaceRef
+- `ribbon()` — ribbon(name: string, points: Array<{ u: number; v: number; }>): ProductRibbonBui
+
+### `ProductSkinBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `axis()` — axis(axis: ProductAxis): this
+- `stations()` — stations(stations: ProductStationBuilder[]): this
+- `rails()` — rails(_rails: Record<string, unknown>): this
+- `refs()` — refs(refs: Record<string, { side: ProductSkinSide; u?: number; v?: number; offse
+- `ref()` — ref(name: string, spec: { side: ProductSkinSide; u?: number; v?: number; offset?
+- `uv()` — uv(side: ProductSkinSide, u: number, v: number): { side: ProductSkinSide; u: num
+- `material()` — material(mat: ProductMaterial): this
+- `color()` — color(color: string): this
+- `edgeLength()` — edgeLength(value: number): this
+- `wall()` — wall(_thickness: number): this
+- `build()` — build(): ProductSkin
+
+### `ProductRibbonBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `on()` — on(skin: ProductSkin, points: Array<{ u: number; v: number; }>, side?: ProductSk
+- `fromRefs()` — fromRefs(refs: ProductSurfaceRef[]): this
+- `width()` — width(value: number): this
+- `thickness()` — thickness(value: number): this
+- `offset()` — offset(value: number): this
+- `samples()` — samples(value: number): this
+- `widthSamples()` — widthSamples(_value: number): this
+- `resolution()` — resolution(_value: number): this
+- `material()` — material(mat: ProductMaterial): this
+- `color()` — color(color: string): this
+- `build()` — build(): Shape
+- `buildWithDiagnostics()` — buildWithDiagnostics(): { shape: Shape; diagnostics: Record<string, unknown>; }
+
+### `ProductSpoutBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `from()` — from(ref: ProductSurfaceRef): this
+- `sections()` — sections(profiles: Sketch[]): this
+- `projection()` — projection(value: number): this
+- `edgeLength()` — edgeLength(value: number): this
+- `material()` — material(mat: ProductMaterial): this
+- `color()` — color(color: string): this
+- `build()` — build(): Shape
+- `attach()` — attach(options?: { inset?: number; offset?: number; }): Shape
+
+### `ProductHandleBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `between()` — between(upper: ProductSurfaceRef, lower: Vec3$10): this
+- `spine()` — spine(points: Vec3$10[]): this
+- `grip()` — grip(profile: Sketch): this
+- `material()` — material(mat: ProductMaterial): this
+- `padMaterial()` — padMaterial(mat: ProductMaterial): this
+- `edgeLength()` — edgeLength(value: number): this
+- `build()` — build(): HandleFeature
+
+### `ProductPanelBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `rounded()` — rounded(width: number, height: number, radius: number): this
+- `oval()` — oval(width: number, height: number): this
+- `profile()` — profile(sketch: Sketch): this
+- `thickness()` — thickness(value: number): this
+- `material()` — material(mat: ProductMaterial): this
+- `color()` — color(color: string): this
+- `build()` — build(): Shape
+- `attachTo()` — attachTo(ref: ProductSurfaceRef, options?: { thickness?: number; offset?: number
+
+### `CylinderCarrier`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+| `kind` | `"cylinder"` | — |
+
+**Methods:**
+
+- `diameter()` — diameter(value: number): this
+- `radius()` — radius(value: number): this
+- `height()` — height(value: number): this
+- `clearance()` — clearance(value: number): this
+- `center()` — center(point: Vec3$10): this
+- `pointAt()` — pointAt(coordinate: { angle?: number; z?: number; offset?: number; }): Vec3$10
+- `anchorFromAngle()` — anchorFromAngle(angle: number, offset?: number): SurfaceAnchor
+- `back()` — back(options?: { offset?: number; z?: number; }): SurfaceAnchor
+- `front()` — front(options?: { offset?: number; z?: number; }): SurfaceAnchor
+- `left()` — left(options?: { offset?: number; z?: number; }): SurfaceAnchor
+- `right()` — right(options?: { offset?: number; z?: number; }): SurfaceAnchor
+- `path()` — path(): SurfacePathBuilder
+
+### `PlaneCarrier`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+| `kind` | `"plane"` | — |
+
+**Methods:**
+
+- `size()` — size(width: number, height: number): this
+- `origin()` — origin(point: Vec3$10): this
+- `pointAt()` — pointAt(coordinate: { x?: number; y?: number; offset?: number; }): Vec3$10
+- `anchor()` — anchor(x?: number, y?: number, options?: { offset?: number; }): SurfaceAnchor
+- `path()` — path(): SurfacePathBuilder
+
+### `ProductSkinCarrier`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `skin` | `ProductSkin` | — |
+| `kind` | `"productSkin"` | — |
+| `name` | `string` | — |
+
+**Methods:**
+
+- `surface()` — surface(side: ProductSkinSide): ProductSkinCarrier
+- `pointAt()` — pointAt(coordinate: { side?: ProductSkinSide; u?: number; v?: number; offset?: n
+- `path()` — path(): SurfacePathBuilder
+
+### `SurfacePath`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `carrier` | `CarrierSurface` | — |
+| `points` | `SurfaceCoordinate[]` | — |
+
+**Methods:**
+
+- `worldPoints()` — worldPoints(): Vec3$10[]
+
+### `SurfacePathBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `carrier` | `CarrierSurface` | — |
+
+**Methods:**
+
+- `from()` — from(coordinate: SurfaceCoordinate): this
+- `through()` — through(coordinate: SurfaceCoordinate): this
+- `to()` — to(coordinate: SurfaceCoordinate): this
+- `around()` — around(input: { z: number; fromAngle: number; toAngle: number; offset?: number; 
+- `build()` — build(): SurfacePath
+
+### `RoundedSlotBuilder`
+
+**Methods:**
+
+- `verticalTravel()` — verticalTravel(value: number): this
+- `at()` — at(input: { along?: number; across?: number; z?: number; }): this
+- `named()` — named(name: string): MemberFeature
+- `toFeature()` — toFeature(name?: string): MemberFeature
+
+### `CounterboreBuilder`
+
+**Methods:**
+
+- `at()` — at(input: { along?: number; across?: number; z?: number; }): this
+- `named()` — named(name: string): MemberFeature
+- `toFeature()` — toFeature(name?: string): MemberFeature
+
+### `SurfaceMemberBuilder`
+
+**Methods:**
+
+- `band()` — band(): this
+- `plate()` — plate(): this
+- `at()` — at(anchor: SurfaceAnchor): this
+- `size()` — size(width: number, height: number): this
+- `path()` — path(path: SurfacePath | SurfacePathBuilder): this
+- `section()` — section(section: MemberSection): this
+- `cap()` — cap(_style: string): this
+- `slot()` — slot(_name: string, _feature: MemberFeature | RoundedSlotBuilder): this
+- `cutout()` — cutout(_name: string, _feature: MemberFeature | RoundedSlotBuilder): this
+- `counterbore()` — counterbore(_name: string, _feature: MemberFeature | CounterboreBuilder): this
+- `features()` — features(_features: MemberFeature | MemberFeature[]): this
+- `profile()` — profile(_name: string, options?: { depth?: number; height?: number; }): this
+- `anchorAt()` — anchorAt(_name: string, _coordinate: unknown): this
+- `mirrorOf()` — mirrorOf(memberName: string): SurfaceBodyBuilder
+- `member()` — member(name: string): SurfaceMemberBuilder
+- `join()` — join(from: string, to: string | string[]): SurfaceJoinBuilder
+- `autoJoinAtSharedAnchors()` — autoJoinAtSharedAnchors(): SurfaceBodyBuilder
+- `build()` — build(): Shape | ShapeGroup
+
+### `SurfaceJoinBuilder`
+
+**Methods:**
+
+- `betweenAnchors()` — betweenAnchors(_from: string, _to: string): this
+- `blend()` — blend(_input?: { radius?: number; style?: string; }): SurfaceBodyBuilder
+
+### `SurfaceBodyBuilder`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | — |
+
+**Methods:**
+
+- `carrier()` — carrier(carrier: CarrierSurface): this
+- `member()` — member(name: string): SurfaceMemberBuilder
+- `addMember()` — addMember(spec: MemberSpec): void
+- `join()` — join(_from: string, _to: string | string[]): SurfaceJoinBuilder
+- `autoJoinAtSharedAnchors()` — autoJoinAtSharedAnchors(): this
+- `build()` — build(): Shape | ShapeGroup
 
 ---
 
