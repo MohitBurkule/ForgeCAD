@@ -138,6 +138,15 @@ export interface SdfShellNode {
   thickness: number;
 }
 
+export interface SdfCircularArrayNode {
+  kind: 'sdf:circularArray';
+  child: SdfNode;
+  /** Number of copies around the Z axis. */
+  count: number;
+  /** Source shape is translated by this distance in +X before arraying. */
+  offset: number;
+}
+
 export interface SdfDisplaceNode {
   kind: 'sdf:displace';
   child: SdfNode;
@@ -281,6 +290,7 @@ export type SdfNode =
   | SdfBendNode
   | SdfRepeatNode
   | SdfShellNode
+  | SdfCircularArrayNode
   | SdfDisplaceNode
   | SdfSurfaceDisplaceNode
   | SdfOnionNode
@@ -345,6 +355,8 @@ export function cloneSdfNode(node: SdfNode): SdfNode {
       return { kind: 'sdf:repeat', child: cloneSdfNode(node.child), spacing: [...node.spacing], count: [...node.count] };
     case 'sdf:shell':
       return { kind: 'sdf:shell', child: cloneSdfNode(node.child), thickness: node.thickness };
+    case 'sdf:circularArray':
+      return { kind: 'sdf:circularArray', child: cloneSdfNode(node.child), count: node.count, offset: node.offset };
     case 'sdf:displace':
       return {
         kind: 'sdf:displace',

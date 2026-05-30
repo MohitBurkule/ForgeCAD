@@ -9,13 +9,26 @@ export type {
   BasketWeaveOptions,
   BlendOptions,
   BrickOptions,
+  CombineOptions,
   HoneycombOptions,
   KnurlOptions,
   NoiseOptions,
+  Pattern2DOverUnderWeaveOptions,
+  Pattern2DSineWaveOptions,
+  Pattern2DStripesOptions,
   PerforatedOptions,
   ScalesOptions,
+  SculptBoxOptions,
+  SculptLookPreset,
+  SculptPoint,
+  SculptPointList,
+  SculptPolishInput,
+  SculptTubeOptions,
+  SdfBoundsInput,
+  SdfFunctionOptions,
   SdfToShapeOptions,
   SurfaceDisplaceOptions,
+  TpmsBlockOptions,
   TpmsOptions,
   VoronoiOptions,
   WavesOptions,
@@ -30,6 +43,9 @@ export {
   // Surface patterns (intersection)
   brick,
   capsule,
+  // Materialization
+  circularArray,
+  combine,
   cone,
   cylinder,
   diamond,
@@ -44,9 +60,16 @@ export {
   morph,
   // Noise
   noise,
+  // Typed 2D surface patterns
+  Pattern2D,
+  Pattern2DBuilder,
+  pattern2d,
+  patternNd,
   perforated,
   repeat,
   scales,
+  // Sculpt facade
+  Sculpt,
   // Builder class
   SdfShape,
   schwarzP,
@@ -58,10 +81,13 @@ export {
   sphere,
   // Surface pattern type
   SurfacePattern,
+  toShape,
   torus,
+  tpmsBlock,
   // Domain ops
   twist,
   voronoi,
   waves,
   weave,
+  withinBox,
 } from './sdf';
