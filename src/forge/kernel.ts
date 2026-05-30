@@ -808,12 +808,24 @@ export interface ShapeMaterialProps {
 export class Shape {
   public colorHex: string | undefined;
   public materialProps: ShapeMaterialProps | undefined;
+  /** Optional author-supplied name (set via {@link Shape.as}). Surfaces as the child name in group(). */
+  public shapeName: string | undefined;
 
   constructor(payload: ShapeRuntimePayload, color?: string, geometryInfo?: Partial<GeometryInfo>) {
     this.colorHex = color;
     setShapeRuntimeBackendInternal(this, payload);
     setShapeGeometryInfoInternal(this, createGeometryInfo(geometryInfo));
     // No compile plan set here — callers (buildShapeFromCompilePlan, etc.) must set it immediately after.
+  }
+
+  /** Tag this shape with a name. The name surfaces as the child name when the shape is passed bare to group(). */
+  as(name: string): Shape {
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      throw new Error('Shape.as(name) requires a non-empty string');
+    }
+    const out = this.clone();
+    out.shapeName = name.trim();
+    return out;
   }
 
   /** Set the color of this shape (hex string, e.g. "#ff0000") */
@@ -852,6 +864,7 @@ export class Shape {
   clone(): Shape {
     const out = withCopiedDimensions(this, new Shape(getShapeRuntimeBackendInternal(this).clone(), this.colorHex));
     out.materialProps = this.materialProps ? { ...this.materialProps } : undefined;
+    out.shapeName = this.shapeName;
     return out;
   }
 

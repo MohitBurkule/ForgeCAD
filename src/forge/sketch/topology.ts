@@ -445,6 +445,16 @@ export class TrackedShape {
     return new TrackedShape(this.shape.material(props), this.topology, this.baseHeight, this.extrudeUp);
   }
 
+  /** Tag this shape with a name (surfaces as the child name when passed bare to group()). Returns a new TrackedShape. */
+  as(name: string): TrackedShape {
+    return new TrackedShape(this.shape.as(name), this.topology, this.baseHeight, this.extrudeUp);
+  }
+
+  /** Author-supplied name set via {@link TrackedShape.as}. */
+  get shapeName(): string | undefined {
+    return this.shape.shapeName;
+  }
+
   /** Access the underlying Shape for boolean ops etc */
   toShape(): Shape {
     return this.shape;

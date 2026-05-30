@@ -163,6 +163,7 @@ import {
   Surface,
 } from './sketch';
 import { Blend } from './blend';
+import { Carrier, Counterbore, Loft, Product, Ribs, Slot, SurfaceBody, SurfaceMembers } from './surfacing';
 import type { SolverWasmRunDebugSnapshot } from './sketch/constraints/solver-wasm';
 import { composeChain, Transform } from './transform';
 import { Analysis, getCollectedVerifications, resetVerifications, spec, type VerificationResult, verify } from './verification';
@@ -523,6 +524,14 @@ function executeFile(
       compareWith,
       sdf,
       Sculpt: sdf.Sculpt,
+      Loft,
+      Product,
+      Carrier,
+      SurfaceBody,
+      SurfaceMembers,
+      Slot,
+      Counterbore,
+      Ribs,
       Shape,
       Sketch,
       lib: partLibrary,
