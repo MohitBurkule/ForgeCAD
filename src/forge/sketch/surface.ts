@@ -39,7 +39,7 @@ export interface SurfacePatchCurves {
   right: ExactCurveInput;
 }
 
-export interface SurfacePatchOptions extends SurfaceCommonOptions {}
+export interface SurfaceCoonsPatchOptions extends SurfaceCommonOptions {}
 
 export interface SurfaceSolidOptions {
   /** Validate the resulting solid is closed/manifold. Default false. */
@@ -200,7 +200,7 @@ export const Surface = {
   },
 
   /** Create a Coons patch sheet bounded by four edge curves. */
-  Patch(curves: SurfacePatchCurves, options: SurfacePatchOptions = {}): Shape {
+  Patch(curves: SurfacePatchCurves, options: SurfaceCoonsPatchOptions = {}): Shape {
     if (curves == null || typeof curves !== 'object') {
       throw new Error('Surface.Patch: requires { bottom, top, left, right } boundary curves.');
     }

@@ -20,5 +20,7 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "// note": "forge-api.d.ts is a generated bundle consumed by Monaco via ?raw (a string asset), not real source. dts-bundle-generator can emit syntactically-odd output that is fine as an editor type string but must not be type-checked here.",
+  "exclude": ["src/forge/forge-api.d.ts"]
 }

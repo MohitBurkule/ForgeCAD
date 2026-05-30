@@ -653,7 +653,8 @@ export function buildShapeFromCompilePlan(plan: ShapeCompilePlan, color?: string
   // Ensure geometryInfo.backend reflects the actual backend used, not the caller's default.
   const resolvedInfo: Partial<GeometryInfo> = {
     ...geometryInfo,
-    backend: _activeBackend,
+    // 'truck' geometry is lowered through Manifold meshing, so report it as a manifold backend.
+    backend: _activeBackend === 'truck' ? 'manifold' : _activeBackend,
   };
   return setShapeCompilePlan(new Shape(backend, color, resolvedInfo), plan);
 }

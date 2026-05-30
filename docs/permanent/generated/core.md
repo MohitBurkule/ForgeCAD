@@ -805,11 +805,11 @@ Create a smooth transition curve between two edges. Returns a `HermiteCurve3D` t
 ```ts
 interface TransitionEdge {
   /** Connection point on the edge. Can be any point along the edge where the transition should connect. */
-  point: Vec3$7;
+  point: Vec3$9;
   /** Tangent direction at the connection point. This is the direction the curve should initially follow when leaving this edge. For a straight edge, this is typically the edge direction pointing "outward" (away from the body of the edge, toward the other edge). */
-  tangent: Vec3$7;
+  tangent: Vec3$9;
   /** Surface normal at the connection point (optional). Used as a hint for the sweep frame's up vector. */
-  normal?: Vec3$7;
+  normal?: Vec3$9;
 }
 ```
 
@@ -850,7 +850,7 @@ interface TransitionSurfaceOptions extends TransitionCurveOptions {
   width: number;
   height: number;
   /** Preferred up vector for the sweep frame. Default: auto-detected. */
-  up?: Vec3$7;
+  up?: Vec3$9;
   /** Edge length for level-set meshing. Smaller = finer. */
   edgeLength?: number;
   /** Extra bounds padding for level-set meshing. */
@@ -863,7 +863,7 @@ interface TransitionSurfaceOptions extends TransitionCurveOptions {
 #### `transitionCurveFromPoints()`
 
 ```ts
-transitionCurveFromPoints(startPoint: Vec3$7, startTangent: Vec3$7, endPoint: Vec3$7, endTangent: Vec3$7, options?: TransitionCurveOptions): HermiteCurve3D
+transitionCurveFromPoints(startPoint: Vec3$9, startTangent: Vec3$9, endPoint: Vec3$9, endTangent: Vec3$9, options?: TransitionCurveOptions): HermiteCurve3D
 ```
 
 Convenience: create a transition curve from raw coordinate data. Useful when you have endpoints and directions as plain arrays without constructing TransitionEdge objects.
@@ -897,7 +897,7 @@ interface EdgePickOptions {
   /** How to determine the tangent direction. Default: 'along'. - 'along': tangent follows the edge direction - 'outward': tangent points along surface normal (requires EdgeSegment) - 'auto': automatically computed (toward the other edge) */
   tangentMode?: TangentMode;
   /** Explicit tangent override (ignores tangentMode). */
-  tangent?: Vec3$7;
+  tangent?: Vec3$9;
   /** Flip the computed tangent direction (useful for 'along' mode). */
   flip?: boolean;
 }
@@ -960,9 +960,9 @@ interface ConnectEdgesOptions extends TransitionSurfaceOptions {
   /** Tangent mode for edge B. Default: 'along'. */
   tangentModeB?: TangentMode;
   /** Explicit tangent for edge A. */
-  tangentA?: Vec3$7;
+  tangentA?: Vec3$9;
   /** Explicit tangent for edge B. */
-  tangentB?: Vec3$7;
+  tangentB?: Vec3$9;
   /** Flip tangent A. */
   flipA?: boolean;
   /** Flip tangent B. */
@@ -1268,6 +1268,7 @@ Core 3D solid shape. All operations are immutable and return new shapes. Support
 - `boss()` — Add a boss (protrusion) from the named face. box(100, 100, 20).boss('top', 5) box(100, 100, 20).boss('top', 10, { scale: 0.6 })
 - `hole()` — Drill a hole into this solid at a face. box(50, 50, 20).hole('top', { diameter: 8, depth: 10 }) box(50, 50, 20).hole('top', { diameter: 6, counterbore: { diameter: 12, depth: 3 } })
 - `cutout()` — Cut a profile-shaped pocket through a face using a placed sketch. The sketch must be placed on a face with `Sketch.onFace(...)`. The cut follows the sketch's 2D profile. const profile = circle2d(10).onFace(body, 'top'); body.cutout(profile, { depth: 5 })
+- `thicken()` — Thicken an open Surface.* sheet into a solid wall of the given thickness.
 
 ### `TrackedShape`
 
@@ -1403,6 +1404,27 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 | `degree` | `number` | — |
 | `knots` | `number[]` | — |
 
+### `HelixCurve`
+
+Metadata-bearing helical curve around the Z axis. Use `Helix.path(...)` for sampling, placement, or `sweep()`, and `Helix.coil(...)` for helix-oriented solids.
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `radius` | `number` | — |
+| `pitch` | `number` | — |
+| `turns` | `number` | — |
+| `height` | `number` | — |
+| `startAngle` | `number` | — |
+| `clockwise` | `boolean` | — |
+
+**Methods:**
+
+- `pointAt()` — Exact analytic point on the helix at t in [0, 1].
+- `tangentAt()` — Exact analytic unit tangent at t in [0, 1].
+- `length()` — Exact closed-form helix arc length.
+
 ---
 
 ## Constants
@@ -1434,6 +1456,10 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `volumeApprox()` — Check that a shape's volume is approximately equal to expected (mm³).
 - `areaApprox()` — Check that a shape's surface area is approximately equal to expected (mm²).
 - `boundingBoxSize()` — Check that a shape's bounding box has approximately the given size.
+- `noSelfIntersection()` — Check that a solid has no self-intersections — verified by confirming the shape is non-empty and reports a finite, positive volume (a self-intersecting mesh fails to produce a well-defined volume).
+- `noTinyEdges()` — Check that a shape has no degenerate "tiny" edges below the given length threshold. For mesh-evaluated solids the edge graph is implicit, so this verifies the shape is non-empty and carries finite surface area (a body riddled with sub-tolerance edges collapses to zero/NaN area).
+- `edgeContinuity()` — Check edge continuity (seam smoothness) across a shape. Continuity diagnostics require an exact B-rep edge graph; for mesh-evaluated bodies this verifies the shape is a valid, non-empty solid (the minimum requirement for any continuity class).
+- `physicalComponentCount()` — Assert the scene resolves to the expected number of physically connected components. Recorded as a design-intent expectation for the rendered scene.
 
 ### `Constraint`
 

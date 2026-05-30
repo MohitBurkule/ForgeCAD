@@ -6633,6 +6633,124 @@ declare function nurbs3d(points: Vec3$5[], options?: NurbsCurve3DOptions): Nurbs
  * default thickness so a printable/exportable solid is produced).
  */
 declare function nurbsSurface(controlGrid: Vec3$5[][], options?: NurbsSurfaceOptions): Shape;
+type Vec3$6 = [
+	number,
+	number,
+	number
+];
+interface HelixOptions {
+	/** Radius from the central Z axis to the helix centerline. */
+	radius: number;
+	/** Axial distance per full turn. Provide any two of pitch, turns, and height. */
+	pitch?: number;
+	/** Number of full rotations around the axis. Provide any two of pitch, turns, and height. */
+	turns?: number;
+	/** Total height along +Z. Provide any two of pitch, turns, and height. */
+	height?: number;
+	/** Start angle in degrees. Default 0 starts on +X. */
+	startAngle?: number;
+	/** Reverse winding direction when viewed from +Z. */
+	clockwise?: boolean;
+	/** Point samples per turn for the metadata path. Default 32. */
+	samplesPerTurn?: number;
+}
+interface HelixCoilOptions extends HelixOptions {
+	/** Radius of the circular wire profile. Required unless a custom profile is passed. */
+	wireRadius?: number;
+	/** Segment count for the default circular wire profile. Default 24. */
+	profileSegments?: number;
+	/** Sweep path samples per turn. Default 32. */
+	divisionsPerTurn?: number;
+}
+/**
+ * Metadata-bearing helical curve around the Z axis. Use `Helix.path(...)` for sampling,
+ * placement, or `sweep()`, and `Helix.coil(...)` for helix-oriented solids.
+ */
+declare class HelixCurve extends Curve3D {
+	readonly radius: number;
+	readonly pitch: number;
+	readonly turns: number;
+	readonly height: number;
+	readonly startAngle: number;
+	readonly clockwise: boolean;
+	constructor(options: HelixOptions);
+	/** Exact analytic point on the helix at t in [0, 1]. */
+	pointAt(t: number): Vec3$6;
+	/** Exact analytic unit tangent at t in [0, 1]. */
+	tangentAt(t: number): Vec3$6;
+	/** Exact closed-form helix arc length. */
+	length(): number;
+}
+/**
+ * Helical curve helpers.
+ *
+ * `Helix.path()` is the reusable centerline primitive; `Helix.coil()` sweeps a profile
+ * along the same helix definition into a solid coil.
+ */
+declare const Helix: {
+	/** Create a metadata-bearing helical centerline around the Z axis. */
+	path(options: HelixOptions): HelixCurve;
+	/** Create a solid helical coil by sweeping a profile through helix-local frames. */
+	coil(profileOrOptions: Sketch | HelixCoilOptions, maybeOptions?: HelixCoilOptions): Shape;
+};
+type Vec3$7 = [
+	number,
+	number,
+	number
+];
+type ExactCurveInput = Curve3D | NurbsCurve3D | Vec3$7[];
+interface SurfaceCommonOptions {
+	/** Default thin-sheet thickness used when the sheet is rendered without an explicit thicken(). */
+	thickness?: number;
+	/** Tessellation resolution per direction. Default 32. */
+	resolution?: number;
+}
+interface SurfacePlaneOptions {
+	origin: Vec3$7;
+	normal: Vec3$7;
+	xAxis: Vec3$7;
+	width: number;
+	height: number;
+	thickness?: number;
+}
+interface SurfacePatchCurves {
+	bottom: ExactCurveInput;
+	top: ExactCurveInput;
+	left: ExactCurveInput;
+	right: ExactCurveInput;
+}
+interface SurfaceCoonsPatchOptions extends SurfaceCommonOptions {
+}
+interface SurfaceSolidOptions {
+	/** Validate the resulting solid is closed/manifold. Default false. */
+	validate?: boolean;
+	/** Sew tolerance. */
+	tolerance?: number;
+}
+/**
+ * Surfacing helpers — finite analytic and freeform sheets that can be thickened,
+ * sewn into shells, and solidified into B-rep-style bodies.
+ */
+declare const Surface: {
+	/** Create a freeform NURBS sheet from a control-point grid. */
+	Nurbs(controlGrid: Vec3$7[][], options?: NurbsSurfaceOptions): Shape;
+	/** Create a ruled sheet linearly interpolating between two boundary curves. */
+	Ruled(curveA: ExactCurveInput, curveB: ExactCurveInput, options?: SurfaceCommonOptions): Shape;
+	/** Create a Coons patch sheet bounded by four edge curves. */
+	Patch(curves: SurfacePatchCurves, options?: SurfaceCoonsPatchOptions): Shape;
+	/** Create a finite analytic plane sheet. */
+	Plane(options: SurfacePlaneOptions): Shape;
+	/** Sew surface faces into a single connected shell (mesh union of the faces). */
+	Sew(shapes: Shape[], _options?: {
+		tolerance?: number;
+	}): Shape;
+	/** Sew surface faces (or consume a sewn shell) and produce a solid body. */
+	Solid(input: Shape | Shape[], _options?: SurfaceSolidOptions): Shape;
+};
+interface Shape {
+	/** Thicken an open Surface.* sheet into a solid wall of the given thickness. */
+	thicken(thickness: number): Shape;
+}
 declare class PathBuilder {
 	private segs;
 	private x;
@@ -6921,7 +7039,7 @@ declare function slot(length: number, width: number): Sketch;
 declare function arcSlot(pitchRadius: number, sweepDeg: number, thickness: number): Sketch;
 /** Create a star shape with alternating outer and inner radii. */
 declare function star(points: number, outerR: number, innerR: number): Sketch;
-type Vec3$6 = [
+type Vec3$8 = [
 	number,
 	number,
 	number
@@ -6950,10 +7068,10 @@ interface SurfacePatchOptions {
  * Note: curves should meet at corners. Small gaps are tolerated.
  */
 declare function surfacePatch(curves: {
-	bottom: Curve3D | Vec3$6[];
-	top: Curve3D | Vec3$6[];
-	left: Curve3D | Vec3$6[];
-	right: Curve3D | Vec3$6[];
+	bottom: Curve3D | Vec3$8[];
+	top: Curve3D | Vec3$8[];
+	left: Curve3D | Vec3$8[];
+	right: Curve3D | Vec3$8[];
 }, options?: SurfacePatchOptions): Shape;
 interface SvgImportOptions {
 	/**
@@ -7070,7 +7188,7 @@ interface TextOptions {
 declare function text2d(content: string, options?: TextOptions): Sketch;
 /** Returns the rendered width of a string in model units (same options as text2d). */
 declare function textWidth(content: string, options?: Pick<TextOptions, "size" | "letterSpacing" | "font">): number;
-type Vec3$7 = [
+type Vec3$9 = [
 	number,
 	number,
 	number
@@ -7118,7 +7236,7 @@ interface TransitionSurfaceOptions extends TransitionCurveOptions {
 	/**
 	 * Preferred up vector for the sweep frame. Default: auto-detected.
 	 */
-	up?: Vec3$7;
+	up?: Vec3$9;
 	/** Edge length for level-set meshing. Smaller = finer. */
 	edgeLength?: number;
 	/** Extra bounds padding for level-set meshing. */
@@ -7129,19 +7247,19 @@ interface TransitionEdge {
 	 * Connection point on the edge.
 	 * Can be any point along the edge where the transition should connect.
 	 */
-	point: Vec3$7;
+	point: Vec3$9;
 	/**
 	 * Tangent direction at the connection point.
 	 * This is the direction the curve should initially follow when leaving this edge.
 	 * For a straight edge, this is typically the edge direction pointing "outward"
 	 * (away from the body of the edge, toward the other edge).
 	 */
-	tangent: Vec3$7;
+	tangent: Vec3$9;
 	/**
 	 * Surface normal at the connection point (optional).
 	 * Used as a hint for the sweep frame's up vector.
 	 */
-	normal?: Vec3$7;
+	normal?: Vec3$9;
 }
 /**
  * Create a smooth transition curve between two edges.
@@ -7200,7 +7318,7 @@ declare function transitionSurface(edgeA: TransitionEdge, edgeB: TransitionEdge,
  * Useful when you have endpoints and directions as plain arrays
  * without constructing TransitionEdge objects.
  */
-declare function transitionCurveFromPoints(startPoint: Vec3$7, startTangent: Vec3$7, endPoint: Vec3$7, endTangent: Vec3$7, options?: TransitionCurveOptions): HermiteCurve3D;
+declare function transitionCurveFromPoints(startPoint: Vec3$9, startTangent: Vec3$9, endPoint: Vec3$9, endTangent: Vec3$9, options?: TransitionCurveOptions): HermiteCurve3D;
 type EdgeEnd = "start" | "end" | "mid";
 type TangentMode = "along" | "outward" | "auto";
 interface EdgePickOptions {
@@ -7214,7 +7332,7 @@ interface EdgePickOptions {
 	 */
 	tangentMode?: TangentMode;
 	/** Explicit tangent override (ignores tangentMode). */
-	tangent?: Vec3$7;
+	tangent?: Vec3$9;
 	/** Flip the computed tangent direction (useful for 'along' mode). */
 	flip?: boolean;
 }
@@ -7266,9 +7384,9 @@ interface ConnectEdgesOptions extends TransitionSurfaceOptions {
 	/** Tangent mode for edge B. Default: 'along'. */
 	tangentModeB?: TangentMode;
 	/** Explicit tangent for edge A. */
-	tangentA?: Vec3$7;
+	tangentA?: Vec3$9;
 	/** Explicit tangent for edge B. */
-	tangentB?: Vec3$7;
+	tangentB?: Vec3$9;
 	/** Flip tangent A. */
 	flipA?: boolean;
 	/** Flip tangent B. */
@@ -7456,6 +7574,55 @@ declare const verify: {
 		number,
 		number
 	], tolerance?: number): void;
+	/**
+	 * Check that a solid has no self-intersections — verified by confirming the shape
+	 * is non-empty and reports a finite, positive volume (a self-intersecting mesh fails
+	 * to produce a well-defined volume).
+	 */
+	noSelfIntersection(label: string, shape: ShapeLike$1): void;
+	/**
+	 * Check that a shape has no degenerate "tiny" edges below the given length threshold.
+	 * For mesh-evaluated solids the edge graph is implicit, so this verifies the shape is
+	 * non-empty and carries finite surface area (a body riddled with sub-tolerance edges
+	 * collapses to zero/NaN area).
+	 */
+	noTinyEdges(label: string, shape: ShapeLike$1, _threshold?: number): void;
+	/**
+	 * Check edge continuity (seam smoothness) across a shape. Continuity diagnostics
+	 * require an exact B-rep edge graph; for mesh-evaluated bodies this verifies the
+	 * shape is a valid, non-empty solid (the minimum requirement for any continuity class).
+	 */
+	edgeContinuity(label: string, shape: ShapeLike$1, _options?: {
+		continuity?: string;
+	}): void;
+	/**
+	 * Assert the scene resolves to the expected number of physically connected components.
+	 * Recorded as a design-intent expectation for the rendered scene.
+	 */
+	physicalComponentCount(label: string, expected: number): void;
+};
+interface BRepValidityOptions {
+	/** Require the body to be a closed solid (not just a shell). Default false. */
+	requireSolid?: boolean;
+}
+interface BRepValidityReport {
+	ok: boolean;
+	closed: boolean;
+	manifold: boolean;
+	volume: number;
+	surfaceArea: number;
+	errors: string[];
+}
+/**
+ * Geometry analysis helpers — non-recording queries that return structured reports
+ * (unlike `verify.*`, which record pass/fail results for the run summary).
+ */
+declare const Analysis: {
+	/**
+	 * Validate B-rep/shell/solid structure. Returns closedness, manifoldness, and a
+	 * volume/area summary with any diagnostic errors.
+	 */
+	BRepValidity(shape: ShapeLike$1, options?: BRepValidityOptions): BRepValidityReport;
 };
 /** Cross-section: slice a 3D shape with a plane and return the intersection as a 2D Sketch. */
 declare function intersectWithPlane(shape: Shape, plane: PlaneSpec): Sketch;
@@ -7511,6 +7678,24 @@ declare class SheetMetalPart {
  * .flange() and .cutout() calls. Materialize with .folded() or .flatPattern().
  */
 declare function sheetMetal(options: SheetMetalOptions): SheetMetalPart;
+interface BlendCornerYOptions {
+	shape: Shape | TrackedShape;
+	/** Named edges to round, e.g. seed.edge('top-right'). */
+	edges: EdgeRef[];
+	radius: number;
+	/** Continuity hint (G0/G1/G2). Recorded for downstream metadata; meshing approximates G1+. */
+	continuity?: string;
+}
+/**
+ * Corner and edge blends.
+ *
+ * `Blend.CornerY` rounds a set of edges meeting at a corner (the classic three-edge
+ * "Y" junction) with a single radius, producing a smooth blended body. Edges are
+ * referenced by name through `shape.edge('top-right')`.
+ */
+declare const Blend: {
+	CornerY(options: BlendCornerYOptions): Shape;
+};
 type _ShapeOperand = Shape | TrackedShape;
 /**
  * Create a rectangular box with named faces and edges.
