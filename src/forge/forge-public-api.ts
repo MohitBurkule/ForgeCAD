@@ -96,6 +96,8 @@ export type { GeometryBackend, GeometryFidelity, GeometryInfo, GeometryRepresent
 // ── placement (C9) ──────────────────────────────────────────────────────────────
 export type { PortAlign, PortDef, PortInput, PortMap } from './port';
 /** @concept placement */ export { port } from './port';
+export type { ConnectorGender, ConnectorInput, ConnectorDef, ConnectorMap, MatchToOptions } from './connector';
+/** @concept assembly */ export { connector } from './connector';
 
 // ── topology (C5) ───────────────────────────────────────────────────────────────
 export type { BoundingRegion, EdgeQuery, EdgeSegment } from './query/edgeQuery';

@@ -11,6 +11,17 @@ import { explode } from './explode';
 import { pipeRoute, elbow } from './pipe-routing';
 import { spurGear, bevelGear, faceGear, sideGear, ringGear, rackGear, gearPair, bevelGearPair, faceGearPair, sideGearPair } from './gears';
 import {
+  sectorGear,
+  driveWheel,
+  readDriveWheelMeta,
+  gearBodies,
+  gearBodyDisk,
+  gearBodyDiskWithHub,
+  gearBodySpoked,
+  gearBodyFromProfile,
+} from './gears';
+import { beltDrive, tangentLoop2d } from './belts';
+import {
   boltedServiceCover,
   snapLatchCoverAssembly,
   capturedCartridgeGuideAssembly,
@@ -26,6 +37,7 @@ import {
   pcbTerminalBlockAssembly,
   thumbScrewClampAssembly,
   datumEnclosureAssembly,
+  routedTubeClipAssembly,
 } from './assemblies';
 
 // ---------------------------------------------------------------------------
@@ -351,6 +363,16 @@ export const partLibrary = {
   bevelGearPair,
   faceGearPair,
   sideGearPair,
+  sectorGear,
+  driveWheel,
+  readDriveWheelMeta,
+  gearBodies,
+  gearBodyDisk,
+  gearBodyDiskWithHub,
+  gearBodySpoked,
+  gearBodyFromProfile,
+  beltDrive,
+  tangentLoop2d,
   boltedServiceCover,
   snapLatchCoverAssembly,
   capturedCartridgeGuideAssembly,
@@ -366,4 +388,5 @@ export const partLibrary = {
   pcbTerminalBlockAssembly,
   thumbScrewClampAssembly,
   datumEnclosureAssembly,
+  routedTubeClipAssembly,
 };
