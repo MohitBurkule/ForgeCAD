@@ -10,5 +10,6 @@ export * from './profiles-2020';
 export * from './explode';
 export * from './pipe-routing';
 export * from './gears';
+export * from './belts';
 export * from './fasteners';
 export * from './assemblies';

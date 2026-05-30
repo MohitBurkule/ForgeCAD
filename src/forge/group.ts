@@ -4,7 +4,8 @@
  * Colors, individual identities are preserved.
  */
 
-import { type Anchor3D, isAnchor3D, normalizeAnchor3D, resolveAnchor3D, Shape } from './kernel';
+import { type Anchor3D, getShapePorts, isAnchor3D, normalizeAnchor3D, resolveAnchor3D, Shape } from './kernel';
+import { getConnectorDistance, getConnectorMeasurements, getConnectorNames, getConnectorsByType } from './connector';
 import {
   applyPlacementReferenceInput,
   clonePlacementReferences,
@@ -94,6 +95,38 @@ function transformGroupPortsHelper(source: ShapeGroup, dest: ShapeGroup, matrix:
 
 export function getShapeGroupPorts(g: ShapeGroup): PortMap {
   return clonePortMap(getGroupPorts(g));
+}
+
+/**
+ * Aggregate this group's own connectors plus all named children's connectors,
+ * namespaced as `ChildName.connectorName`. Nested groups recurse.
+ */
+export function getGroupPortsWithChildren(g: ShapeGroup): PortMap {
+  const result: PortMap = {};
+  for (let i = 0; i < g.children.length; i++) {
+    const name = g.childNames[i];
+    if (!name) continue;
+    const child = g.children[i];
+    let childPorts: PortMap = {};
+    if (child instanceof Shape) {
+      childPorts = getShapePorts(child);
+    } else if (child instanceof TrackedShape) {
+      childPorts = getShapePorts(child.toShape());
+    } else if (child instanceof ShapeGroup) {
+      childPorts = getGroupPortsWithChildren(child);
+    }
+    for (const [portName, portDef] of Object.entries(childPorts)) {
+      result[`${name}.${portName}`] = portDef;
+    }
+  }
+  for (const [portName, portDef] of Object.entries(getGroupPorts(g))) {
+    result[portName] = portDef;
+  }
+  return result;
+}
+
+export function getShapeGroupPortsWithChildren(g: ShapeGroup): PortMap {
+  return clonePortMap(getGroupPortsWithChildren(g));
 }
 
 // --- Transform helpers ---
@@ -579,6 +612,36 @@ export class ShapeGroup {
   /** List named port identifiers carried by this group. */
   portNames(): string[] {
     return Object.keys(getGroupPorts(this)).sort();
+  }
+
+  /** Attach named connectors to this group (own ports, not children). */
+  withConnectors(connectors: Record<string, PortInput>): ShapeGroup {
+    return this.withPorts(connectors);
+  }
+
+  /** Internal: expose aggregated connector ports (own + named children) for matchTo. */
+  getConnectorPorts(): PortMap {
+    return getGroupPortsWithChildren(this);
+  }
+
+  /** List all connector names, including dotted "Child.connector" paths. */
+  connectorNames(): string[] {
+    return getConnectorNames(getGroupPortsWithChildren(this));
+  }
+
+  /** Get all connectors of a given type, including from named children. */
+  connectorsByType(type: string) {
+    return getConnectorsByType(getGroupPortsWithChildren(this), type);
+  }
+
+  /** Distance between two connector origins on this group (supports dotted child paths). */
+  connectorDistance(nameA: string, nameB: string): number {
+    return getConnectorDistance(getGroupPortsWithChildren(this), nameA, nameB);
+  }
+
+  /** Get measurements metadata from a connector (supports dotted child paths). */
+  connectorMeasurements(name: string): Record<string, number | string> {
+    return getConnectorMeasurements(getGroupPortsWithChildren(this), name);
   }
 
   /**

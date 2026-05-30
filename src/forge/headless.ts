@@ -53,6 +53,8 @@ export type { PreheatOptions, PrinterProfile, ToolpathData, ToolpathSegment } fr
 export { GCodeBuilder, gcode } from './export/gcode';
 export type { GroupChild, GroupInput, NamedGroupChild } from './group';
 export { group, ShapeGroup } from './group';
+export type { ConnectorGender, ConnectorInput, ConnectorDef, ConnectorMap, MatchToOptions } from './connector';
+export { connector } from './connector';
 export * from './holeCut';
 export type { RevoluteJointOpts } from './assembly/joint';
 export { joint } from './assembly/joint';

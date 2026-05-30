@@ -285,6 +285,45 @@ export const verify = {
   },
 
   /**
+   * Check that two named connectors on an assembled shape or group are seated
+   * within tolerance of each other.
+   *
+   * Connector names support dotted child paths on groups: `"Child.connector"`.
+   *
+   * @example
+   * verify.connectorDistance("leg is seated", bench, "Rail.leg_0", "Leg0.head", 0, 0.01);
+   */
+  connectorDistance(
+    label: string,
+    target: { connectorDistance(a: string, b: string): number },
+    connectorA: string,
+    connectorB: string,
+    expected = 0,
+    tolerance = 0.01,
+  ): void {
+    const line = captureSourceLine();
+    try {
+      const actual = target.connectorDistance(connectorA, connectorB);
+      const diff = Math.abs(actual - expected);
+      const passed = diff <= Math.abs(tolerance);
+      push({
+        id: nextId(),
+        label,
+        status: passed ? 'pass' : 'fail',
+        message: passed
+          ? `Connector distance ${roundNum(actual)} mm ≈ ${roundNum(expected)} mm`
+          : `Connector distance ${roundNum(actual)} mm is outside ${roundNum(expected)} ± ${roundNum(tolerance)} mm`,
+        line: passed ? undefined : line,
+        expected: `${roundNum(expected)} ± ${roundNum(tolerance)} mm`,
+        actual: `${roundNum(actual)} mm`,
+      });
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      push({ id: nextId(), label, status: 'fail', message: errMsg, line });
+    }
+  },
+
+  /**
    * Check that two numbers are NOT equal (differ by more than tolerance).
    */
   notEqual(label: string, actual: number, unexpected: number, tolerance = 0, message?: string): void {

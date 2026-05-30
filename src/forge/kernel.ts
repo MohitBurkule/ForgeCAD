@@ -46,8 +46,19 @@ import {
   resolvePlacementReferencePoint,
   transformPlacementReferences,
 } from './placement';
-import type { PortInput, PortMap } from './port';
+import type { PortDef, PortInput, PortMap } from './port';
 import { clonePortMap, hasAnyPorts, mergePortMaps, normalizePortMapInput, transformPortMap } from './port';
+import type { ConnectorInput, MatchToOptions } from './connector';
+import {
+  computeMultiPairAlignment,
+  computeSinglePairAlignment,
+  getConnectorDistance,
+  getConnectorMeasurements,
+  getConnectorNames,
+  getConnectorsByType,
+  normalizeConnectorMapInput,
+  validateConnectorMatch,
+} from './connector';
 import {
   attachTopologyRewritePropagation,
   buildBooleanTopologyRewritePropagation,
@@ -252,6 +263,68 @@ function setShapePortsInternal(shape: Shape, ports: PortMap): Shape {
 
 function getShapePortsInternal(shape: Shape): PortMap {
   return clonePortMap(_shapePorts.get(shape) ?? {});
+}
+
+interface MatchToPair {
+  selfName: string;
+  selfPort: PortDef;
+  targetName: string;
+  targetPort: PortDef;
+}
+
+function getTargetConnectorPorts(target: unknown): PortMap {
+  if (target instanceof Shape) return getShapePortsInternal(target);
+  // Allow group-like targets that expose connector ports via duck typing.
+  const maybe = target as { getConnectorPorts?: () => PortMap } | null;
+  if (maybe && typeof maybe.getConnectorPorts === 'function') return maybe.getConnectorPorts();
+  throw new Error('matchTo: target must be a Shape or ShapeGroup');
+}
+
+function resolveMatchToArgs(
+  selfPorts: PortMap,
+  targetOrPairs: Shape | Array<[Shape, string, string]>,
+  selfConnOrDict: string | Record<string, string> | MatchToOptions | undefined,
+  targetConnOrOptions: string | MatchToOptions | undefined,
+  maybeOptions: MatchToOptions | undefined,
+): { pairs: MatchToPair[]; options: MatchToOptions } {
+  const requireSelf = (name: string): PortDef => {
+    const port = selfPorts[name];
+    if (!port) throw new Error(`matchTo: unknown connector "${name}" on self. Available: ${Object.keys(selfPorts).join(', ') || 'none'}`);
+    return port;
+  };
+  const requireTarget = (ports: PortMap, name: string): PortDef => {
+    const port = ports[name];
+    if (!port) throw new Error(`matchTo: unknown connector "${name}" on target. Available: ${Object.keys(ports).join(', ') || 'none'}`);
+    return port;
+  };
+
+  if (Array.isArray(targetOrPairs)) {
+    const options = (selfConnOrDict as MatchToOptions) ?? {};
+    const pairs: MatchToPair[] = [];
+    for (const [target, selfName, targetName] of targetOrPairs) {
+      const targetPorts = getTargetConnectorPorts(target);
+      pairs.push({ selfName, selfPort: requireSelf(selfName), targetName, targetPort: requireTarget(targetPorts, targetName) });
+    }
+    return { pairs, options };
+  }
+
+  const targetPorts = getTargetConnectorPorts(targetOrPairs);
+  if (typeof selfConnOrDict === 'object' && selfConnOrDict !== null) {
+    const options = (targetConnOrOptions as MatchToOptions) ?? {};
+    const pairs: MatchToPair[] = [];
+    for (const [selfName, targetName] of Object.entries(selfConnOrDict as Record<string, string>)) {
+      pairs.push({ selfName, selfPort: requireSelf(selfName), targetName, targetPort: requireTarget(targetPorts, targetName) });
+    }
+    return { pairs, options };
+  }
+
+  const selfName = selfConnOrDict as string;
+  const targetName = targetConnOrOptions as string;
+  const options = maybeOptions ?? {};
+  return {
+    pairs: [{ selfName, selfPort: requireSelf(selfName), targetName, targetPort: requireTarget(targetPorts, targetName) }],
+    options,
+  };
 }
 
 function getShapeGeometryInfoInternal(shape: Shape): GeometryInfo {
@@ -590,6 +663,31 @@ export function getShapePorts(shape: Shape): PortMap {
   return getShapePortsInternal(shape);
 }
 
+/**
+ * Compute the rigid transform that seats `selfPorts` against a target's
+ * connectors. Used by both `Shape.matchTo` and `TrackedShape.matchTo`.
+ */
+export function computeMatchToTransform(
+  selfPorts: PortMap,
+  targetOrPairs: Shape | Array<[Shape, string, string]>,
+  selfConnOrDict?: string | Record<string, string> | MatchToOptions,
+  targetConnOrOptions?: string | MatchToOptions,
+  maybeOptions?: MatchToOptions,
+): Transform {
+  const resolved = resolveMatchToArgs(selfPorts, targetOrPairs, selfConnOrDict, targetConnOrOptions, maybeOptions);
+  const force = resolved.options.force ?? false;
+  for (const pair of resolved.pairs) {
+    validateConnectorMatch(pair.selfName, pair.selfPort, pair.targetName, pair.targetPort, force);
+  }
+  return resolved.pairs.length === 1
+    ? computeSinglePairAlignment(resolved.pairs[0].selfPort, resolved.pairs[0].targetPort)
+    : computeMultiPairAlignment(
+        resolved.pairs.map((p) => ({ childOrigin: p.selfPort.origin, targetOrigin: p.targetPort.origin })),
+        resolved.pairs.map((p) => p.selfPort),
+        resolved.pairs.map((p) => p.targetPort),
+      ).transform;
+}
+
 export function getShapeRuntimeBackend(shape: Shape): ShapeBackend {
   return getShapeRuntimeBackendInternal(shape);
 }
@@ -789,6 +887,57 @@ export class Shape {
   /** List named port identifiers carried by this shape. */
   portNames(): string[] {
     return Object.keys(getShapePortsInternal(this)).sort();
+  }
+
+  /**
+   * Attach named connectors — typed/gendered attachment points used to assemble
+   * fixed multi-part objects. Connectors are ports with optional connector
+   * metadata; they survive transforms and imports.
+   */
+  withConnectors(connectors: Record<string, ConnectorInput>): Shape {
+    const out = this.clone();
+    const existing = getShapePortsInternal(this);
+    const incoming = normalizeConnectorMapInput(connectors);
+    setShapePortsInternal(out, mergePortMaps(existing, incoming));
+    return out;
+  }
+
+  /** List connector names carried by this shape. */
+  connectorNames(): string[] {
+    return getConnectorNames(getShapePortsInternal(this));
+  }
+
+  /** Get connectors of a given connector type. */
+  connectorsByType(type: string): Array<{ name: string; port: PortDef }> {
+    return getConnectorsByType(getShapePortsInternal(this), type);
+  }
+
+  /** Distance between two connector origins on this shape. */
+  connectorDistance(nameA: string, nameB: string): number {
+    return getConnectorDistance(getShapePortsInternal(this), nameA, nameB);
+  }
+
+  /** Get measurements metadata from a connector. */
+  connectorMeasurements(name: string): Record<string, number | string> {
+    return getConnectorMeasurements(getShapePortsInternal(this), name);
+  }
+
+  /**
+   * Position this shape by matching its connector(s) to a target's connector(s).
+   *
+   * Overloads:
+   * - Single pair: `matchTo(target, selfConn, targetConn, options?)`
+   * - Dictionary: `matchTo(target, { selfConn: targetConn, ... }, options?)`
+   * - Multi-target: `matchTo([[target, selfConn, targetConn], ...], options?)`
+   */
+  matchTo(
+    targetOrPairs: Shape | Array<[Shape, string, string]>,
+    selfConnOrDict?: string | Record<string, string> | MatchToOptions,
+    targetConnOrOptions?: string | MatchToOptions,
+    maybeOptions?: MatchToOptions,
+  ): Shape {
+    const tx = computeMatchToTransform(getShapePortsInternal(this), targetOrPairs, selfConnOrDict, targetConnOrOptions, maybeOptions);
+    return this.transform(tx);
   }
 
   /** Resolve a named placement reference or built-in anchor to a 3D point. */

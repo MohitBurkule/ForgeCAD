@@ -6,6 +6,8 @@ import type { JointType } from './assembly/assembly';
 // Types
 // ---------------------------------------------------------------------------
 
+export type ConnectorGender = 'male' | 'female' | 'neutral';
+
 export interface PortDef {
   origin: Vec3;
   axis: Vec3;
@@ -14,6 +16,10 @@ export interface PortDef {
   kind?: JointType;
   min?: number;
   max?: number;
+  // Connector metadata (optional — present when created via connector factory)
+  connectorType?: string;
+  gender?: ConnectorGender;
+  measurements?: Record<string, number | string>;
 }
 
 export type PortAlign = 'middle' | 'start' | 'end';
@@ -209,6 +215,9 @@ export function clonePortDef(p: PortDef): PortDef {
   if (p.kind != null) out.kind = p.kind;
   if (p.min != null) out.min = p.min;
   if (p.max != null) out.max = p.max;
+  if (p.connectorType != null) out.connectorType = p.connectorType;
+  if (p.gender != null) out.gender = p.gender;
+  if (p.measurements != null) out.measurements = { ...p.measurements };
   return out;
 }
 
@@ -264,6 +273,10 @@ export function transformPort(port: PortDef, matrix: Mat4): PortDef {
   if (port.kind != null) out.kind = port.kind;
   if (port.min != null) out.min = port.min;
   if (port.max != null) out.max = port.max;
+  // Connector metadata survives transforms unchanged
+  if (port.connectorType != null) out.connectorType = port.connectorType;
+  if (port.gender != null) out.gender = port.gender;
+  if (port.measurements != null) out.measurements = { ...port.measurements };
   return out;
 }
 

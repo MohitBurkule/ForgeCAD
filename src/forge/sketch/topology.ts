@@ -14,7 +14,9 @@ import type { FaceQuery, FaceSelector } from '../face-tracking/faceQuery';
 import { normalizeFaceSelector } from '../face-tracking/faceQuery';
 import { queryMeshFace, queryMeshFaces } from '../face-tracking/meshFaceDetect';
 import {
+  computeMatchToTransform,
   type GeometryInfo,
+  getShapePorts,
   getShapePrimaryQueryOwner,
   type PlacementReferenceInput,
   resolveAnchor3D,
@@ -22,7 +24,9 @@ import {
   type ShapeOperandInput,
   setShapePlacementReferences,
 } from '../kernel';
-import type { PortInput } from '../port';
+import type { PortDef, PortInput } from '../port';
+import type { ConnectorInput, MatchToOptions } from '../connector';
+import { getConnectorDistance, getConnectorMeasurements, getConnectorNames, getConnectorsByType } from '../connector';
 import { cloneEdgeQueryRef, cloneFaceQueryRef, cloneShapeQueryOwner, type EdgeQueryRef, type FaceQueryRef } from '../queryModel';
 import { type Mat4, normalizeAxis, type RotateAroundToOptions, Transform } from '../transform';
 import { Point2D, Rectangle2D, type RectSide } from './entities';
@@ -198,6 +202,49 @@ export class TrackedShape {
   /** List named port identifiers carried by this shape. */
   portNames(): string[] {
     return this.shape.portNames();
+  }
+
+  /** Attach named connectors that survive transforms and imports. */
+  withConnectors(connectors: Record<string, ConnectorInput>): TrackedShape {
+    return new TrackedShape(this.shape.withConnectors(connectors), cloneTopology(this.topology), this.baseHeight, this.extrudeUp);
+  }
+
+  /** List connector names carried by this shape. */
+  connectorNames(): string[] {
+    return getConnectorNames(getShapePorts(this.shape));
+  }
+
+  /** Get connectors of a given connector type. */
+  connectorsByType(type: string): Array<{ name: string; port: PortDef }> {
+    return getConnectorsByType(getShapePorts(this.shape), type);
+  }
+
+  /** Distance between two connector origins on this shape. */
+  connectorDistance(nameA: string, nameB: string): number {
+    return getConnectorDistance(getShapePorts(this.shape), nameA, nameB);
+  }
+
+  /** Get measurements metadata from a connector. */
+  connectorMeasurements(name: string): Record<string, number | string> {
+    return getConnectorMeasurements(getShapePorts(this.shape), name);
+  }
+
+  /**
+   * Position this shape by matching its connector(s) to a target's connector(s),
+   * preserving tracked topology.
+   */
+  matchTo(
+    targetOrPairs: Shape | TrackedShape | Array<[Shape | TrackedShape, string, string]>,
+    selfConnOrDict?: string | Record<string, string> | MatchToOptions,
+    targetConnOrOptions?: string | MatchToOptions,
+    maybeOptions?: MatchToOptions,
+  ): TrackedShape {
+    const unwrap = (t: Shape | TrackedShape): Shape => (t instanceof TrackedShape ? t.toShape() : t);
+    const target = Array.isArray(targetOrPairs)
+      ? (targetOrPairs.map(([t, s, tn]) => [unwrap(t), s, tn]) as Array<[Shape, string, string]>)
+      : unwrap(targetOrPairs);
+    const tx = computeMatchToTransform(getShapePorts(this.shape), target, selfConnOrDict, targetConnOrOptions, maybeOptions);
+    return this.transform(tx);
   }
 
   /** List named placement references carried by this tracked shape. */

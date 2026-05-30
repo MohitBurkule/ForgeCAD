@@ -10,6 +10,7 @@
 import './holeCut';
 import { Assembly, assembly, bomToCsv, ImportedAssembly, SolvedAssembly } from './assembly/assembly';
 import { port } from './port';
+import { connector } from './connector';
 import { type BomDef, bom, getCollectedBom, resetBom } from './bom';
 import { compareWith, resetAnnotations, Viewport } from './annotations';
 import type { ShapeCompilePlan } from './compilePlan';
@@ -531,6 +532,7 @@ function executeFile(
       assembly,
       Assembly,
       port,
+      connector,
       SolvedAssembly,
       bomToCsv,
       faceProfile,

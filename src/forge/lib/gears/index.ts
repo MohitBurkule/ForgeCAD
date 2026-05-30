@@ -37,3 +37,35 @@ export type {
   FaceGearPairResult,
 } from './pairs';
 export { gearPair, bevelGearPair, sideGearPair, faceGearPair } from './pairs';
+
+export type {
+  GearBodyDiskOptions,
+  GearBodyDiskWithHubOptions,
+  GearBodySpokedOptions,
+  GearBodyFromProfileOptions,
+} from './bodies';
+export { gearBodyDisk, gearBodyDiskWithHub, gearBodySpoked, gearBodyFromProfile } from './bodies';
+
+export type {
+  DriveWheelMeta,
+  DriveWheelOptions,
+  DriveWheelRegionKind,
+  DriveWheelRegionMeta,
+  DriveWheelShapeRegionOptions,
+  DriveWheelSolidArcRegionOptions,
+  DriveWheelSpurTeethRegionOptions,
+} from './drive-wheel';
+export { DriveWheelBuilder, driveWheel, DRIVE_WHEEL_META_KEY, readDriveWheelMeta } from './drive-wheel';
+
+export type { SectorGearOptions } from './sector';
+export { sectorGear } from './sector';
+
+import { gearBodyDisk, gearBodyDiskWithHub, gearBodySpoked, gearBodyFromProfile } from './bodies';
+
+/** Gear body preset namespace: disk, diskWithHub, spoked, and fromProfile. */
+export const gearBodies = {
+  disk: gearBodyDisk,
+  diskWithHub: gearBodyDiskWithHub,
+  spoked: gearBodySpoked,
+  fromProfile: gearBodyFromProfile,
+};

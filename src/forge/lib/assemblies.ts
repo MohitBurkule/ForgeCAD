@@ -1773,3 +1773,169 @@ export function datumEnclosureAssembly(options: any) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Routed tube / cable retained by saddle clips
+// ---------------------------------------------------------------------------
+
+export interface RoutedTubeClipAssemblyOptions {
+  tubeDiameter: number;
+  tubeLength?: number;
+  clipCount?: number;
+  screwSize?: MetricSize;
+  panelThickness?: number;
+  runningClearance?: number;
+  clipWallThickness?: number;
+  clipWidth?: number;
+  clipSpacing?: number;
+  panelLength?: number;
+  panelWidth?: number;
+  segments?: number;
+}
+
+export interface RoutedTubeClipAssemblyResult {
+  parts: Array<{ name: string; shape: Shape }>;
+  panel: Shape;
+  tube: Shape;
+  clips: Shape[];
+  screws: Shape[];
+  clipCenters: number[];
+  screwPositions: Array<[number, number]>;
+  cutters: { clipTubeBores: Shape; clipScrewClearances: Shape; panelThreadEnvelopes: Shape };
+  dims: Record<string, number | string>;
+}
+
+/**
+ * Routed tube or cable retained by saddle clips with real bores, screw holes,
+ * and installed screws.
+ *
+ * Coordinate convention: the routed tube runs along +X through the world
+ * origin. The base panel starts at `z=0`; clips sit on top of the panel, and
+ * the tube passes through their bores.
+ */
+export function routedTubeClipAssembly(options: RoutedTubeClipAssemblyOptions): RoutedTubeClipAssemblyResult {
+  const tubeDiameter = requirePositive(options.tubeDiameter, 'tubeDiameter');
+  const tubeLength = requirePositive(options.tubeLength ?? 120, 'tubeLength');
+  const panelThickness = requirePositive(options.panelThickness ?? 3, 'panelThickness');
+  const runningClearance = requirePositive(options.runningClearance ?? 0.35, 'runningClearance');
+  const screwSize = options.screwSize ?? 'M3';
+  const segments = options.segments ?? 32;
+  const sizeData = METRIC_HOLE_TABLE[screwSize];
+  if (!sizeData) throw new Error(`routedTubeClipAssembly: unsupported screwSize "${screwSize}"`);
+  const clipCount = options.clipCount ?? 3;
+  if (!Number.isInteger(clipCount) || clipCount < 1 || clipCount > 8) {
+    throw new Error('routedTubeClipAssembly: clipCount must be an integer from 1 to 8');
+  }
+  const screwDiameter = parseFloat(screwSize.replace('M', ''));
+  const screwHeadDiameter = sizeData.head;
+  const tubeBoreDiameter = tubeDiameter + runningClearance * 2;
+  const clipWallThickness = requirePositive(
+    options.clipWallThickness ?? Math.max(screwHeadDiameter + 1.2, tubeDiameter * 0.45, 5),
+    'clipWallThickness',
+  );
+  const clipWidth = requirePositive(options.clipWidth ?? Math.max(screwHeadDiameter + 3, tubeDiameter * 1.4, 10), 'clipWidth');
+  const clipDepth = tubeBoreDiameter + clipWallThickness * 2;
+  const bottomWall = Math.max(1.2, clipWallThickness * 0.35);
+  const topWall = Math.max(2, clipWallThickness * 0.45);
+  const clipHeight = bottomWall + tubeBoreDiameter + topWall;
+  const tubeCenterZ = panelThickness + bottomWall + tubeBoreDiameter / 2;
+  const panelLength = requirePositive(options.panelLength ?? tubeLength + 24, 'panelLength');
+  const panelWidth = requirePositive(options.panelWidth ?? clipDepth + Math.max(14, screwHeadDiameter * 2), 'panelWidth');
+  if (tubeLength <= clipWidth + 8) {
+    throw new Error('routedTubeClipAssembly: tubeLength must leave visible tube beyond the clip body');
+  }
+  const defaultSpacing = clipCount === 1 ? 0 : Math.max(clipWidth + 8, (tubeLength - clipWidth * 2) / (clipCount - 1));
+  const clipSpacing = options.clipSpacing === undefined ? defaultSpacing : requirePositive(options.clipSpacing, 'clipSpacing');
+  const clipCenters = Array.from({ length: clipCount }, (_, index) => (index - (clipCount - 1) / 2) * clipSpacing);
+  const maxClipExtent = Math.max(...clipCenters.map((x) => Math.abs(x) + clipWidth / 2));
+  if (maxClipExtent > tubeLength / 2 - 2) {
+    throw new Error('routedTubeClipAssembly: clipSpacing places a clip beyond the routed tube length');
+  }
+  if (maxClipExtent > panelLength / 2 - 2) {
+    throw new Error('routedTubeClipAssembly: panelLength is too short for the clip pattern');
+  }
+  const boreRadius = tubeBoreDiameter / 2;
+  const screwY = boreRadius + clipWallThickness / 2;
+  if (screwY + screwHeadDiameter / 2 > clipDepth / 2 - 0.2) {
+    throw new Error('routedTubeClipAssembly: clipWallThickness leaves too little land for screw heads');
+  }
+  if (clipDepth > panelWidth - Math.max(4, screwHeadDiameter * 0.5)) {
+    throw new Error('routedTubeClipAssembly: panelWidth leaves too little material beside the clips');
+  }
+  const screwPositions: Array<[number, number]> = clipCenters.flatMap((x) => [
+    [x, -screwY] as [number, number],
+    [x, screwY] as [number, number],
+  ]);
+  const screwClearanceDiameter = Math.max(sizeData.loose, screwDiameter + 0.8);
+  const panelThreadEnvelopeDiameter = screwClearanceDiameter;
+  const clipTopZ = panelThickness + clipHeight;
+
+  const clipTubeBores = union(
+    ...clipCenters.map((x) => cylinderAlongX(clipWidth + 0.8, boreRadius, x, segments).translate(0, 0, tubeCenterZ)),
+  );
+  const clipScrewClearances = union(
+    ...screwPositions.map(([x, y]) => cylinder(clipHeight + 0.8, screwClearanceDiameter / 2, undefined, segments).translate(x, y, panelThickness - 0.4)),
+  );
+  const panelThreadEnvelopes = union(
+    ...screwPositions.map(([x, y]) => cylinder(panelThickness + 0.8, panelThreadEnvelopeDiameter / 2, undefined, segments).translate(x, y, -0.4)),
+  );
+
+  const panel = box(panelLength, panelWidth, panelThickness).subtract(panelThreadEnvelopes).color('#475569');
+  const tube = cylinderAlongX(tubeLength, tubeDiameter / 2, 0, segments).translate(0, 0, tubeCenterZ).color('#0f172a');
+  const clips = clipCenters.map((x) => {
+    const body = box(clipWidth, clipDepth, clipHeight).translate(x, 0, panelThickness);
+    const tubeBore = cylinderAlongX(clipWidth + 0.8, boreRadius, x, segments).translate(0, 0, tubeCenterZ);
+    const screwHoles = union(
+      cylinder(clipHeight + 0.8, screwClearanceDiameter / 2, undefined, segments).translate(x, -screwY, panelThickness - 0.4),
+      cylinder(clipHeight + 0.8, screwClearanceDiameter / 2, undefined, segments).translate(x, screwY, panelThickness - 0.4),
+    );
+    return body.subtract(tubeBore).subtract(screwHoles).color('#94a3b8');
+  });
+
+  const screwLength = clipHeight + panelThickness * 0.65;
+  const screwHeadHeight = Math.max(1.2, screwDiameter * 0.55);
+  const screwBlank = union(
+    cylinder(screwLength, screwDiameter / 2, undefined, segments).translate(0, 0, clipTopZ - screwLength),
+    cylinder(screwHeadHeight, screwHeadDiameter / 2, undefined, segments).translate(0, 0, clipTopZ),
+  ).color('#cbd5e1');
+  const screws = screwPositions.map(([x, y]) => screwBlank.translate(x, y, 0));
+
+  const parts = [
+    { name: 'panel with tube-clip screw receiving holes', shape: panel },
+    { name: 'routed flexible tube through retained clip bores', shape: tube },
+    ...clips.map((shape, index) => ({ name: `saddle tube clip ${index + 1} with through-bore`, shape })),
+    ...screws.map((shape, index) => ({ name: `installed ${screwSize} tube clip screw ${index + 1}`, shape })),
+  ];
+
+  return {
+    parts,
+    panel,
+    tube,
+    clips,
+    screws,
+    clipCenters,
+    screwPositions,
+    cutters: { clipTubeBores, clipScrewClearances, panelThreadEnvelopes },
+    dims: {
+      tubeDiameter,
+      tubeLength,
+      tubeBoreDiameter,
+      panelLength,
+      panelWidth,
+      panelThickness,
+      clipCount,
+      clipWidth,
+      clipDepth,
+      clipHeight,
+      clipWallThickness,
+      tubeCenterZ,
+      screwSize,
+      screwDiameter,
+      screwHeadDiameter,
+      screwLength,
+      screwClearanceDiameter,
+      panelThreadEnvelopeDiameter,
+      runningClearance,
+    },
+  };
+}

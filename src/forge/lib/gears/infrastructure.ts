@@ -7,7 +7,7 @@ import { Shape } from '../../kernel';
 export const GEAR_META_KEY = Symbol.for('forgecad.library.gearMeta');
 export const EPSILON = 1e-9;
 
-export type GearKind = 'spur' | 'ring' | 'rack' | 'bevel' | 'face';
+export type GearKind = 'spur' | 'sector' | 'ring' | 'rack' | 'bevel' | 'face';
 
 export interface GearMeta {
   kind: GearKind;
@@ -34,6 +34,11 @@ export interface GearMeta {
   shaftAngleDeg?: number;
   coneDistance?: number;
   topScale?: number;
+  teethOnFullCircle?: number;
+  firstTooth?: number;
+  toothCount?: number;
+  activeAngleStartDeg?: number;
+  activeAngleEndDeg?: number;
 }
 
 export function clamp01(value: number): number {
