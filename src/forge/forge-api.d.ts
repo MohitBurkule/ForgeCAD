@@ -2287,6 +2287,16 @@ declare class TrackedShape {
 		number,
 		number
 	]): TrackedShape;
+	/** Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. Topology is cleared. */
+	rotateAroundAxis(axis: [
+		number,
+		number,
+		number
+	], angleDeg: number, pivot?: [
+		number,
+		number,
+		number
+	]): TrackedShape;
 	/** Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point. */
 	rotateAroundTo(axis: [
 		number,
@@ -2514,6 +2524,14 @@ interface SdfShellNode {
 	child: SdfNode;
 	thickness: number;
 }
+interface SdfCircularArrayNode {
+	kind: "sdf:circularArray";
+	child: SdfNode;
+	/** Number of copies around the Z axis. */
+	count: number;
+	/** Source shape is translated by this distance in +X before arraying. */
+	offset: number;
+}
 interface SdfDisplaceNode {
 	kind: "sdf:displace";
 	child: SdfNode;
@@ -2615,7 +2633,7 @@ interface SdfCustomNode {
 	/** Named constants injected as additional function parameters (avoids closure serialization issues). */
 	constants?: Record<string, number>;
 }
-type SdfNode = SdfSphereNode | SdfBoxNode | SdfCylinderNode | SdfTorusNode | SdfCapsuleNode | SdfConeNode | SdfUnionNode | SdfDifferenceNode | SdfIntersectionNode | SdfSmoothUnionNode | SdfSmoothDifferenceNode | SdfSmoothIntersectionNode | SdfMorphNode | SdfTranslateNode | SdfRotateNode | SdfScaleNode | SdfTwistNode | SdfBendNode | SdfRepeatNode | SdfShellNode | SdfDisplaceNode | SdfSurfaceDisplaceNode | SdfOnionNode | SdfGyroidNode | SdfSchwarzPNode | SdfDiamondNode | SdfLidinoidNode | SdfSpatialBlendNode | SdfNoiseNode | SdfVoronoiNode | SdfCustomNode;
+type SdfNode = SdfSphereNode | SdfBoxNode | SdfCylinderNode | SdfTorusNode | SdfCapsuleNode | SdfConeNode | SdfUnionNode | SdfDifferenceNode | SdfIntersectionNode | SdfSmoothUnionNode | SdfSmoothDifferenceNode | SdfSmoothIntersectionNode | SdfMorphNode | SdfTranslateNode | SdfRotateNode | SdfScaleNode | SdfTwistNode | SdfBendNode | SdfRepeatNode | SdfShellNode | SdfCircularArrayNode | SdfDisplaceNode | SdfSurfaceDisplaceNode | SdfOnionNode | SdfGyroidNode | SdfSchwarzPNode | SdfDiamondNode | SdfLidinoidNode | SdfSpatialBlendNode | SdfNoiseNode | SdfVoronoiNode | SdfCustomNode;
 declare const SHEET_METAL_EDGES: readonly [
 	"top",
 	"right",
@@ -2725,6 +2743,18 @@ interface PlacementReferenceInput {
 	objects?: Record<string, PlacementObjectInput>;
 }
 type PlacementAnchorLike = Anchor3D | string;
+interface SdfBounds {
+	min: Vec3$1;
+	max: Vec3$1;
+}
+	Vec3$1,
+	Vec3$1
+];
+interface SdfVisualMetadata {
+	colorHex?: string;
+	materialProps?: ShapeMaterialProps;
+	bounds?: SdfBounds;
+}
 
 
 
@@ -2739,6 +2769,55 @@ type PlacementAnchorLike = Anchor3D | string;
 
 
 
+
+
+
+interface SurfacePatternNode {
+	kind: string;
+	[key: string]: any;
+}
+
+
+
+	color?: string;
+});
+declare function knownSculptMaterialPresets(): string[];
+declare function sculptLook(preset?: SculptLookPreset): Record<string, unknown>;
+
+type SculptBlendArg = SdfShape | SdfShape[] | {
+	radius?: number;
+} | undefined;
+	number,
+	number,
+	number,
+	number
+];
+
+declare const Sculpt: {
+	sphere: (radius: number) => SdfShape;
+	box: (x: number, y: number, z: number, options?: SculptBoxOptions) => SdfShape;
+	cylinder: (height: number, radius: number) => SdfShape;
+	disk: (radius: number, thickness?: number) => SdfShape;
+	circle: (radius: number, thickness?: number) => SdfShape;
+	capsule: (height: number, radius: number) => SdfShape;
+	torus: (majorRadius: number, minorRadius: number) => SdfShape;
+	cone: (height: number, radius: number) => SdfShape;
+	tube: (points: SculptPointList, options?: SculptTubeOptions) => SdfShape;
+	curve: (points: SculptPointList, options?: SculptTubeOptions) => SdfShape;
+	path: (points: SculptPointList, options?: SculptTubeOptions) => SdfShape;
+	blend: (...args: SculptBlendArg[]) => SdfShape;
+	union: (first?: SdfShape | SdfShape[], ...rest: (SdfShape | SdfShape[])[]) => SdfShape;
+	carve: (base: SdfShape, cutters: SdfShape | SdfShape[], options?: {
+		radius?: number;
+	}) => SdfShape;
+	keep: (...args: SculptBlendArg[]) => SdfShape;
+	polish: (shape: SdfShape, input?: SculptPolishInput) => SdfShape;
+	material: (input?: SculptPolishInput) => ShapeMaterialProps & {
+		color?: string;
+	};
+	look: typeof sculptLook;
+	knownMaterials: typeof knownSculptMaterialPresets;
+};
 type GeometryBackend = "manifold" | "occt" | "hybrid" | "unknown";
 type GeometryRepresentation = "mesh-solid" | "brep-solid" | "surface" | "mixed";
 type GeometryFidelity = "kernel-native" | "exact" | "sampled" | "deformed" | "mixed" | "unknown";
@@ -2786,6 +2865,14 @@ interface ShapeMaterialProps {
 	clearcoat?: number;
 	/** Clearcoat roughness (0–1). Default: 0.4 */
 	clearcoatRoughness?: number;
+	/** Light transmission for translucent/glass materials (0–1). */
+	transmission?: number;
+	/** Index of refraction for transmissive materials (e.g. 1.45 for glass). */
+	ior?: number;
+	/** Specular reflectivity for dielectrics (0–1). */
+	reflectivity?: number;
+	/** Specular intensity multiplier (0–1). */
+	specularIntensity?: number;
 }
 /**
  * Core 3D solid shape. All operations are immutable and return new shapes.
@@ -2969,6 +3056,16 @@ declare class Shape {
 	 * Equivalent to: translate(-pivot) → rotate around axis → translate(+pivot)
 	 */
 	rotateAround(axis: [
+		number,
+		number,
+		number
+	], angleDeg: number, pivot?: [
+		number,
+		number,
+		number
+	]): Shape;
+	/** Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. */
+	rotateAroundAxis(axis: [
 		number,
 		number,
 		number
@@ -3211,6 +3308,16 @@ declare class ShapeGroup {
 	 * Sugar for: group.transform(Transform.rotationAxis(axis, angleDeg, pivot))
 	 */
 	rotateAround(axis: [
+		number,
+		number,
+		number
+	], angleDeg: number, pivot?: [
+		number,
+		number,
+		number
+	]): ShapeGroup;
+	/** Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. */
+	rotateAroundAxis(axis: [
 		number,
 		number,
 		number
@@ -4058,6 +4165,23 @@ declare function cutPlane(name: string, normal: [
 	number,
 	number
 ], options?: CutPlaneOptions): void;
+/**
+ * `Viewport.*` — viewport-only annotations that aid understanding without
+ * adding geometry. Use `Viewport.label()` for explanatory text.
+ */
+declare const Viewport: {
+	/** Register a viewport-only text label at an optional 3D anchor. */
+	readonly label: (text: string, at?: [
+		number,
+		number,
+		number
+	], options?: Record<string, unknown>) => void;
+};
+/**
+ * Register a comparison of the current model against a reference asset
+ * (an STL/3MF mesh or another .forge.js model). Honored by `inspect comparison`.
+ */
+declare function compareWith(reference: string, options?: Record<string, unknown>): void;
 interface EdgeSegment {
 	/** Stable index within the extraction (deterministic for a given mesh). */
 	index: number;
@@ -4892,6 +5016,505 @@ declare const partLibrary: {
  */
 
 	sideGearPair(options: SideGearPairOptions): SideGearPairResult;
+	boltedServiceCover(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	parent: Shape;
+	cover: Shape;
+	gasket: Shape | null;
+	screws: Shape[];
+	boltPositions: [
+		number,
+		number
+	][];
+	cutters: {
+		coverClearance: Shape;
+		parentTapped: Shape;
+		parentThreadEnvelope: Shape;
+	};
+	dims: {
+		width: number;
+		depth: number;
+		coverThickness: number;
+		parentThickness: number;
+		ledgeWidth: number;
+		gasketThickness: number;
+		screwSize: MetricSize;
+		screwLength: number;
+		clearanceDia: number;
+		tapDia: number;
+		threadEnvelopeDia: number;
+	};
+};
+	snapLatchCoverAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	parent: Shape;
+	cover: Shape;
+	cutters: {
+		serviceOpening: Shape;
+		latchWindows: Shape;
+	};
+	dims: {
+		width: number;
+		depth: number;
+		parentWidth: number;
+		parentDepth: number;
+		openingWidth: number;
+		openingDepth: number;
+		coverThickness: number;
+		parentThickness: number;
+		ledgeWidth: number;
+		latchWidth: number;
+		latchThickness: number;
+		hookThrow: number;
+		hookThickness: number;
+		runningClearance: number;
+		faceClearance: number;
+	};
+};
+	capturedCartridgeGuideAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	guide: Shape;
+	cartridge: Shape;
+	dims: {
+		length: number;
+		guideWidth: number;
+		innerWidth: number;
+		throatWidth: number;
+		baseThickness: number;
+		wallThickness: number;
+		wallHeight: number;
+		lipWidth: number;
+		lipThickness: number;
+		rearStopLength: number;
+		cartridgeLength: number;
+		cartridgeWidth: number;
+		cartridgeBodyWidth: number;
+		cartridgeHeight: number;
+		flangeThickness: number;
+		pullTabLength: number;
+		runningClearance: number;
+		maxInsertion: number;
+		insertion: any;
+		cartridgeCenterX: any;
+	};
+};
+	capturedLinearSlide(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	rail: Shape;
+	carriage: Shape;
+	dims: {
+		length: number;
+		railWidth: number;
+		innerWidth: number;
+		throatWidth: number;
+		baseThickness: number;
+		wallThickness: number;
+		wallHeight: number;
+		lipWidth: number;
+		lipThickness: number;
+		carriageLength: number;
+		carriageWidth: number;
+		carriageThickness: number;
+		endStopLength: number;
+		runningClearance: number;
+		maxTravel: number;
+		travel: any;
+		carriageCenterX: any;
+	};
+};
+	clevisPinJointAssembly(options?: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	clevis: Shape;
+	link: Shape;
+	pin: Shape;
+	cutters: {
+		pinBore: Shape;
+	};
+	dims: {
+		pinDiameter: number;
+		boreDiameter: number;
+		linkThickness: number;
+		earThickness: number;
+		runningClearance: number;
+		earLength: number;
+		earHeight: number;
+		linkArmLength: number;
+		linkArmWidth: number;
+		eyeOuterRadius: number;
+		retainerThickness: number;
+		pinLength: number;
+		clevisGap: number;
+	};
+};
+	pinnedLeverAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	support: Shape;
+	lever: Shape;
+	pin: Shape;
+	washers: {
+		lower: Shape;
+		upper: Shape;
+	};
+	cutters: {
+		pivotBore: Shape;
+	};
+	dims: {
+		armLength: number;
+		armWidth: number;
+		leverThickness: number;
+		hubRadius: number;
+		pinDiameter: number;
+		boreDiameter: number;
+		supportWidth: number;
+		supportDepth: number;
+		supportThickness: number;
+		washerSize: MetricSize;
+		washerThickness: number;
+		stackHeight: number;
+	};
+};
+	knuckledHingeAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	fixedLeaf: Shape;
+	movingLeaf: Shape;
+	pin: Shape;
+	cutters: {
+		pinBore: Shape;
+	};
+	dims: {
+		length: number;
+		leafLength: number;
+		leafThickness: number;
+		barrelOuterRadius: number;
+		pinDiameter: number;
+		boreDiameter: number;
+		knuckleGap: number;
+		knuckleCount: any;
+		knuckleLength: number;
+		openAngleDeg: any;
+		retainerThickness: number;
+	};
+};
+	livingHingeCoverAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	cover: Shape;
+	fixedLeaf: Shape;
+	movingLeaf: Shape;
+	hingeWeb: Shape;
+	snapBarb: Shape;
+	catchLand: Shape;
+	dims: {
+		width: number;
+		coverDepth: number;
+		fixedLeafDepth: number;
+		leafThickness: number;
+		hingeWebWidth: number;
+		hingeWebThickness: number;
+		pullLipDepth: number;
+		snapBarbWidth: number;
+		snapBarbDepth: number;
+		snapBarbHeight: number;
+		catchLandDepth: number;
+		flexRatio: number;
+		overallDepth: number;
+	};
+};
+	retainedShaftAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	supports: {
+		left: Shape;
+		right: Shape;
+	};
+	shaft: Shape;
+	washers: {
+		left: Shape;
+		right: Shape;
+	};
+	knobs: {
+		left: Shape;
+		right: Shape;
+	};
+	cutters: {
+		shaftBore: Shape;
+	};
+	dims: {
+		supportSpacing: number;
+		supportThickness: number;
+		supportWidth: number;
+		supportHeight: number;
+		shaftDiameter: number;
+		shaftLength: number;
+		boreDiameter: number;
+		washerSize: MetricSize;
+		washerThickness: number;
+		knobDiameter: number;
+		knobThickness: number;
+		retainerThickness: number;
+		runningClearance: number;
+	};
+};
+	seatedBearingAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	housing: Shape;
+	bearing: Shape;
+	shaft: Shape;
+	cutters: {
+		bearingPocket: Shape;
+		shaftBore: Shape;
+	};
+	dims: {
+		bearingOuterDiameter: number;
+		bearingInnerDiameter: number;
+		bearingWidth: number;
+		shaftDiameter: number;
+		housingWidth: number;
+		housingDepth: number;
+		housingThickness: number;
+		bossOuterDiameter: number;
+		bossHeight: number;
+		totalHousingHeight: number;
+		pocketDiameter: number;
+		pocketDepth: number;
+		shaftBoreDiameter: number;
+		runningClearance: number;
+		shaftLength: number;
+		shoulderDiameter: number;
+		shoulderThickness: number;
+	};
+};
+	cableGlandAnchorAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	panel: Shape;
+	gland: Shape;
+	compressionNut: Shape;
+	cable: Shape;
+	cutters: {
+		panelHole: Shape;
+		flangeSeatPocket: Shape;
+		cableBore: Shape;
+	};
+	dims: {
+		cableDiameter: number;
+		cableBoreDiameter: number;
+		panelThickness: number;
+		panelWidth: number;
+		panelHeight: number;
+		glandOuterDiameter: number;
+		glandLength: number;
+		nutOuterDiameter: number;
+		nutThickness: number;
+		flangeDiameter: number;
+		flangeThickness: number;
+		runningClearance: number;
+		faceClearance: number;
+		flangePocketDepth: number;
+		panelHoleDiameter: number;
+		cableLength: number;
+	};
+};
+	hoseBarbPortAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	receiver: Shape;
+	fitting: Shape;
+	hose: Shape;
+	clamp: Shape;
+	cutters: {
+		portBore: Shape;
+		installedHoseBore: Shape;
+	};
+	dims: {
+		hoseInnerDiameter: number;
+		hoseOuterDiameter: number;
+		installedHoseBoreDiameter: number;
+		blockThickness: number;
+		blockWidth: number;
+		blockHeight: number;
+		bossDiameter: number;
+		bossHeight: number;
+		fluidBoreDiameter: number;
+		barbRootDiameter: number;
+		barbPeakDiameter: number;
+		barbCount: any;
+		barbLength: number;
+		barbStackLength: number;
+		shoulderDiameter: number;
+		shoulderThickness: number;
+		hoseLength: number;
+		clampWidth: number;
+		clampThickness: number;
+		runningClearance: number;
+		faceClearance: number;
+	};
+};
+	pcbTerminalBlockAssembly(options?: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	backplate: Shape;
+	pcb: Shape;
+	terminalBlock: Shape;
+	screws: Shape[];
+	mountingPositions: [
+		number,
+		number
+	][];
+	pinPositions: [
+		number,
+		number
+	][];
+	cutters: {
+		pcbMountingHoles: Shape;
+		pcbPinHoles: Shape;
+		standoffThreadEnvelopes: Shape;
+	};
+	dims: {
+		terminalCount: any;
+		terminalPitch: number;
+		boardWidth: number;
+		boardDepth: number;
+		boardThickness: number;
+		backplateWidth: number;
+		backplateDepth: number;
+		backplateThickness: number;
+		standoffHeight: number;
+		standoffDiameter: number;
+		screwSize: MetricSize;
+		screwDiameter: number;
+		screwHeadDiameter: number;
+		screwHeadHeight: number;
+		screwShaftLength: number;
+		boardMountingHoleDiameter: number;
+		standoffThreadEnvelopeDiameter: number;
+		terminalBlockWidth: number;
+		terminalBlockDepth: number;
+		terminalBlockHeight: number;
+		terminalEdgeInset: number;
+		pinDiameter: number;
+		pinClearance: number;
+		pinHoleDiameter: number;
+		pinTailLength: number;
+		wirePortDiameter: number;
+	};
+};
+	thumbScrewClampAssembly(options?: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	frame: Shape;
+	workpiece: Shape;
+	clampScrew: Shape;
+	cutters: {
+		threadedBossBore: Shape;
+		workpieceEnvelope: Shape;
+	};
+	dims: {
+		screwSize: MetricSize;
+		screwDiameter: number;
+		threadEnvelopeDiameter: number;
+		workpieceThickness: number;
+		workpieceDepth: number;
+		workpieceHeight: number;
+		frameDepth: number;
+		frameHeight: number;
+		baseThickness: number;
+		jawThickness: number;
+		supportThickness: number;
+		bossLength: number;
+		bossDiameter: number;
+		exposedScrewLength: number;
+		pressurePadDiameter: number;
+		pressurePadThickness: number;
+		knobDiameter: number;
+		knobThickness: number;
+		screwCenterZ: number;
+		fixedAnvilFaceX: number;
+		pressurePadFaceX: number;
+		supportInnerFaceX: number;
+		runningClearance: number;
+		faceClearance: number;
+	};
+};
+	datumEnclosureAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	base: Shape;
+	cover: Shape;
+	gasket: Shape | null;
+	screws: Shape[];
+	screwPositions: [
+		number,
+		number
+	][];
+	cutters: {
+		coverClearance: Shape;
+		standoffTapped: Shape;
+		standoffThreadEnvelope: Shape;
+		servicePort: Shape;
+	};
+	dims: {
+		width: number;
+		depth: number;
+		height: number;
+		innerWidth: number;
+		innerDepth: number;
+		wallThickness: number;
+		baseThickness: number;
+		coverThickness: number;
+		ledgeWidth: number;
+		gasketThickness: number;
+		faceClearance: number;
+		screwSize: MetricSize;
+		screwLength: number;
+		standoffDiameter: number;
+		ribHeight: number;
+		ribThickness: number;
+		portWidth: number;
+		portHeight: number;
+		clearanceDia: number;
+		tapDia: number;
+		threadEnvelopeDia: number;
+	};
+};
 };
 /**
  * Declare a parameter. Returns the current value (default or overridden).
@@ -4910,6 +5533,26 @@ declare function param(name: string, defaultValue: number, opts?: {
  * Renders as a checkbox in the UI.
  */
 declare function boolParam(name: string, defaultValue: boolean): boolean;
+declare function stringParam(name: string, defaultValue: string, opts?: {
+	maxLength?: number;
+}): string;
+declare function choiceParam(name: string, defaultValue: string, choices: string[]): string;
+declare function listParam<T extends Record<string, number | boolean | string>>(name: string, defaultItems: T[], _opts?: {
+	fields?: unknown;
+	minItems?: number;
+	maxItems?: number;
+}): T[];
+/**
+ * `Param.*` namespace — the parameter-declaration API surface.
+ * `Param.number`/`Param.bool` are aliases of the standalone `param`/`boolParam` functions.
+ */
+declare const Param: {
+	readonly number: typeof param;
+	readonly string: typeof stringParam;
+	readonly bool: typeof boolParam;
+	readonly choice: typeof choiceParam;
+	readonly list: typeof listParam;
+};
 /**
  * ForgeCAD — Scene Configuration API
  *
@@ -5933,6 +6576,63 @@ interface PolygonVerticesOptions {
  * ```
  */
 declare function polygonVertices(sides: number, radius: number, options?: PolygonVerticesOptions): LayoutPoint[];
+type Vec3$5 = [
+	number,
+	number,
+	number
+];
+interface NurbsCurve3DOptions {
+	/** Polynomial degree (default 3 = cubic). Must be >= 1. */
+	degree?: number;
+	/** Rational weights, one per control point (default: all 1.0 = non-rational). */
+	weights?: number[];
+	/** Knot vector (default: uniform clamped). Length must be points.length + degree + 1. */
+	knots?: number[];
+	/** Whether the curve is closed/periodic (default false). */
+	closed?: boolean;
+}
+interface NurbsSurfaceOptions {
+	/** Degree in U direction (default 3). */
+	degreeU?: number;
+	/** Degree in V direction (default 3). */
+	degreeV?: number;
+	/** Weights grid — same dimensions as controlGrid (default: all 1.0). */
+	weights?: number[][];
+	/** Knot vector in U direction (default: uniform clamped). */
+	knotsU?: number[];
+	/** Knot vector in V direction (default: uniform clamped). */
+	knotsV?: number[];
+	/** Sheet thickness — if > 0, thickens the surface into a solid (default 0). */
+	thickness?: number;
+	/** Tessellation resolution — points per direction (default 32). */
+	resolution?: number;
+}
+declare class NurbsCurve3D extends Curve3D {
+	readonly controlPoints: Vec3$5[];
+	readonly weights: number[];
+	readonly degree: number;
+	readonly knots: number[];
+	constructor(points: Vec3$5[], options?: NurbsCurve3DOptions);
+}
+/**
+ * Create a NURBS curve from control points.
+ *
+ * With default options, creates a cubic non-rational B-spline with uniform clamped
+ * knots. Set `weights` for rational curves (exact circles, conics). Set `degree` for
+ * linear (1), quadratic (2), cubic (3), or higher-order curves.
+ *
+ * The returned curve can be passed directly to `sweep()` and `loftAlongSpine()`.
+ */
+declare function nurbs3d(points: Vec3$5[], options?: NurbsCurve3DOptions): NurbsCurve3D;
+/**
+ * Create a NURBS surface from a grid of control points.
+ *
+ * The control grid is indexed as `controlGrid[u][v]`. With default options, creates a
+ * bicubic non-rational B-spline surface with uniform clamped knots. When `thickness > 0`
+ * the surface is thickened into a solid sheet (default 0 → a thin sheet using a small
+ * default thickness so a printable/exportable solid is produced).
+ */
+declare function nurbsSurface(controlGrid: Vec3$5[][], options?: NurbsSurfaceOptions): Shape;
 declare class PathBuilder {
 	private segs;
 	private x;
@@ -5963,6 +6663,17 @@ declare class PathBuilder {
 	 * Throws if endpoint is collinear with current direction.
 	 */
 	tangentArcTo(x: number, y: number): this;
+	/**
+	 * Exact circular arc to (x, y) using a rational-quadratic / true-arc definition.
+	 *
+	 * Unlike a tessellated `arcTo`, this preserves the exact arc center and winding so
+	 * that exact backends (OCCT) can emit a true cylindrical face. On sampled backends
+	 * it tessellates the same exact arc geometry adaptively.
+	 */
+	exactArcTo(x: number, y: number, opts?: {
+		radius?: number;
+		clockwise?: boolean;
+	}): this;
 	/**
 	 * Draw an arc defined by center, radius, and angle range (no trig needed).
 	 * If the path has no segments yet, automatically moves to the arc start.
@@ -6210,7 +6921,7 @@ declare function slot(length: number, width: number): Sketch;
 declare function arcSlot(pitchRadius: number, sweepDeg: number, thickness: number): Sketch;
 /** Create a star shape with alternating outer and inner radii. */
 declare function star(points: number, outerR: number, innerR: number): Sketch;
-type Vec3$5 = [
+type Vec3$6 = [
 	number,
 	number,
 	number
@@ -6239,10 +6950,10 @@ interface SurfacePatchOptions {
  * Note: curves should meet at corners. Small gaps are tolerated.
  */
 declare function surfacePatch(curves: {
-	bottom: Curve3D | Vec3$5[];
-	top: Curve3D | Vec3$5[];
-	left: Curve3D | Vec3$5[];
-	right: Curve3D | Vec3$5[];
+	bottom: Curve3D | Vec3$6[];
+	top: Curve3D | Vec3$6[];
+	left: Curve3D | Vec3$6[];
+	right: Curve3D | Vec3$6[];
 }, options?: SurfacePatchOptions): Shape;
 interface SvgImportOptions {
 	/**
@@ -6359,7 +7070,7 @@ interface TextOptions {
 declare function text2d(content: string, options?: TextOptions): Sketch;
 /** Returns the rendered width of a string in model units (same options as text2d). */
 declare function textWidth(content: string, options?: Pick<TextOptions, "size" | "letterSpacing" | "font">): number;
-type Vec3$6 = [
+type Vec3$7 = [
 	number,
 	number,
 	number
@@ -6407,7 +7118,7 @@ interface TransitionSurfaceOptions extends TransitionCurveOptions {
 	/**
 	 * Preferred up vector for the sweep frame. Default: auto-detected.
 	 */
-	up?: Vec3$6;
+	up?: Vec3$7;
 	/** Edge length for level-set meshing. Smaller = finer. */
 	edgeLength?: number;
 	/** Extra bounds padding for level-set meshing. */
@@ -6418,19 +7129,19 @@ interface TransitionEdge {
 	 * Connection point on the edge.
 	 * Can be any point along the edge where the transition should connect.
 	 */
-	point: Vec3$6;
+	point: Vec3$7;
 	/**
 	 * Tangent direction at the connection point.
 	 * This is the direction the curve should initially follow when leaving this edge.
 	 * For a straight edge, this is typically the edge direction pointing "outward"
 	 * (away from the body of the edge, toward the other edge).
 	 */
-	tangent: Vec3$6;
+	tangent: Vec3$7;
 	/**
 	 * Surface normal at the connection point (optional).
 	 * Used as a hint for the sweep frame's up vector.
 	 */
-	normal?: Vec3$6;
+	normal?: Vec3$7;
 }
 /**
  * Create a smooth transition curve between two edges.
@@ -6489,7 +7200,7 @@ declare function transitionSurface(edgeA: TransitionEdge, edgeB: TransitionEdge,
  * Useful when you have endpoints and directions as plain arrays
  * without constructing TransitionEdge objects.
  */
-declare function transitionCurveFromPoints(startPoint: Vec3$6, startTangent: Vec3$6, endPoint: Vec3$6, endTangent: Vec3$6, options?: TransitionCurveOptions): HermiteCurve3D;
+declare function transitionCurveFromPoints(startPoint: Vec3$7, startTangent: Vec3$7, endPoint: Vec3$7, endTangent: Vec3$7, options?: TransitionCurveOptions): HermiteCurve3D;
 type EdgeEnd = "start" | "end" | "mid";
 type TangentMode = "along" | "outward" | "auto";
 interface EdgePickOptions {
@@ -6503,7 +7214,7 @@ interface EdgePickOptions {
 	 */
 	tangentMode?: TangentMode;
 	/** Explicit tangent override (ignores tangentMode). */
-	tangent?: Vec3$6;
+	tangent?: Vec3$7;
 	/** Flip the computed tangent direction (useful for 'along' mode). */
 	flip?: boolean;
 }
@@ -6555,9 +7266,9 @@ interface ConnectEdgesOptions extends TransitionSurfaceOptions {
 	/** Tangent mode for edge B. Default: 'along'. */
 	tangentModeB?: TangentMode;
 	/** Explicit tangent for edge A. */
-	tangentA?: Vec3$6;
+	tangentA?: Vec3$7;
 	/** Explicit tangent for edge B. */
-	tangentB?: Vec3$6;
+	tangentB?: Vec3$7;
 	/** Flip tangent A. */
 	flipA?: boolean;
 	/** Flip tangent B. */
@@ -6676,6 +7387,16 @@ declare const verify: {
 	 * Check that a minimum clearance gap exists between two shapes.
 	 */
 	minClearance(label: string, a: ShapeLike$1, b: ShapeLike$1, minGap: number, searchLength?: number): void;
+	/**
+	 * Check that the clearance gap between two shapes is inside an allowed range [minGap, maxGap].
+	 * Use a narrow band like [-0.01, 0.05] for seated contact, or the intended band for a running fit.
+	 */
+	clearanceBetween(label: string, a: ShapeLike$1, b: ShapeLike$1, minGap: number, maxGap: number, searchLength?: number): void;
+	/**
+	 * Declare that two visible objects intentionally share volume (welded, overmolded, potted, cast-in, etc.).
+	 * Records a passing annotation; the mechanical-integrity inspector honors it when both shapes are visible.
+	 */
+	intentionalOverlap(label: string, _a: ShapeLike$1, _b: ShapeLike$1, reason: string): void;
 	/**
 	 * Check that two face normals are parallel (within toleranceDeg degrees).
 	 */
@@ -6903,6 +7624,9 @@ declare namespace sdf {
   	/** Mortar gap width. Default: 1 */
   	mortar?: number;
   }
+  export interface CombineOptions {
+  	op?: "union" | "intersection";
+  }
   export interface HoneycombOptions {
   	/** Size of each hex cell. Default: 8 */
   	cellSize?: number;
@@ -6927,6 +7651,67 @@ declare namespace sdf {
   	/** Seed for deterministic variation. Default: 0 */
   	seed?: number;
   }
+  export class Pattern2D extends SurfacePattern {
+  	constructor(node: SurfacePatternNode);
+  	private get node();
+  	/** Add this pattern to one or more patterns or constant height offsets. */
+  	add(...patterns: (Pattern2D | number)[]): Pattern2D;
+  	/** Subtract another pattern or constant height offset from this pattern. */
+  	subtract(pattern: Pattern2D | number): Pattern2D;
+  	/** Multiply this pattern by one or more patterns or numeric scale factors. */
+  	multiply(...patterns: (Pattern2D | number)[]): Pattern2D;
+  	/** Keep the lower height between this pattern and one or more other patterns. */
+  	min(...patterns: (Pattern2D | number)[]): Pattern2D;
+  	/** Keep the higher height between this pattern and one or more other patterns. */
+  	max(...patterns: (Pattern2D | number)[]): Pattern2D;
+  	/** Limit pattern height to the inclusive `[min, max]` range in millimeters. */
+  	clamp(min: number, max: number): Pattern2D;
+  	/** Convert negative heights to positive heights. */
+  	abs(): Pattern2D;
+  	/** Flip the pattern height sign. */
+  	negate(): Pattern2D;
+  }
+  export class Pattern2DBuilder {
+  	/** Create a constant-height pattern in millimeters. */
+  	constant(value?: number): Pattern2D;
+  	/** Create a sinusoidal wave pattern in UV space. */
+  	sineWave(options: Pattern2DSineWaveOptions): Pattern2D;
+  	/** Create recessed stripe bands in UV space. */
+  	stripes(options: Pattern2DStripesOptions): Pattern2D;
+  	/** Create an over-under woven relief pattern in UV space. */
+  	overUnderWeave(options: Pattern2DOverUnderWeaveOptions): Pattern2D;
+  }
+  export interface Pattern2DOverUnderWeaveOptions {
+  	spacing: number | [
+  		number,
+  		number
+  	];
+  	threadWidth: number | [
+  		number,
+  		number
+  	];
+  	depth?: number;
+  	underScale?: number;
+  }
+  export interface Pattern2DSineWaveOptions {
+  	direction?: [
+  		number,
+  		number
+  	];
+  	wavelength: number;
+  	amplitude?: number;
+  	phase?: number;
+  	bias?: number;
+  }
+  export interface Pattern2DStripesOptions {
+  	direction?: [
+  		number,
+  		number
+  	];
+  	spacing: number;
+  	width: number;
+  	depth?: number;
+  }
   export interface PerforatedOptions {
   	/** Hole radius. Default: 3 */
   	radius?: number;
@@ -6939,22 +7724,109 @@ declare namespace sdf {
   	/** How much scales protrude. Default: 0.8 */
   	depth?: number;
   }
+  export { Sculpt };
+  export interface SculptBoxOptions {
+  	radius?: number;
+  }
+  export type SculptLookPreset = "gallery" | "soft-studio" | "candy-shop" | "midnight" | "workbench";
+  export type SculptPoint = Vec3$1 | [
+  export type SculptPointList = SculptPoint[];
+  export type SculptPolishInput = string | (ShapeMaterialProps & {
+  export interface SculptTubeOptions {
+  	/** Default thread radius in mm when a point omits its own. Default: 3 */
+  	radius?: number;
+  	/** Smooth-union blend radius between segments. Default: derived from radius. */
+  	blend?: number;
+  }
+  export type SdfBoundsInput = SdfBounds | [
+  export interface SdfFunctionOptions {
+  	/** Required bounds — the function is opaque, so the meshing region must be explicit. */
+  	bounds: SdfBoundsInput;
+  	/** Named constants injected as extra function parameters (avoids closure capture). */
+  	constants?: Record<string, number>;
+  	/** Raymarch step cap hint (accepted for API parity; CPU sampling ignores it). */
+  	maxStep?: number;
+  	/** Lipschitz bound hint (accepted for API parity). */
+  	lipschitz?: number;
+  }
   export class SdfShape {
   	/** @internal */
   	readonly _node: SdfNode;
   	/** @internal */
-  	constructor(node: SdfNode);
+  	readonly _visual: SdfVisualMetadata;
+  	/** @internal */
+  	constructor(node: SdfNode, visual?: SdfVisualMetadata);
+  	/** Display color carried by this implicit leaf. */
+  	get colorHex(): string | undefined;
+  	/** Display material carried by this implicit leaf. */
+  	get materialProps(): ShapeMaterialProps | undefined;
+  	/** Explicit bounds carried by this implicit leaf, if any. */
+  	get explicitBounds(): SdfBounds | undefined;
+  	/** @internal — return a new SdfShape with a different node but the same visual metadata. */
+  	private withNode;
+  	/** @internal — return a new SdfShape with merged visual metadata. */
+  	private withVisual;
+  	/** Clone this SDF expression and its visual metadata. */
+  	clone(): SdfShape;
+  	/** Alias for clone(). */
+  	duplicate(): SdfShape;
   	/**
   	 * Mesh this SDF into a ForgeCAD Shape via Manifold.levelSet().
   	 * Once converted, the result is a regular Shape — booleans, transforms, export all work.
   	 */
   	toShape(options?: SdfToShapeOptions): Shape;
+  	/** Set the display color for this implicit leaf. */
+  	color(value: string | undefined): SdfShape;
+  	/** Set PBR display material properties for this implicit leaf. */
+  	material(props: ShapeMaterialProps): SdfShape;
+  	/** Set explicit preview/meshing bounds for this implicit leaf. */
+  	bounds(minOrBounds: SdfBoundsInput | Vec3$1, max?: Vec3$1): SdfShape;
+  	/** Sculpt-style alias for translate(). */
+  	at(x: number, y: number, z: number): SdfShape;
+  	/** Sculpt-style alias for translate(). */
+  	move(x: number, y: number, z: number): SdfShape;
+  	/** Sculpt-style alias for rotateZ(). */
+  	spin(angleDeg: number): SdfShape;
+  	/** Sculpt-style tilt around X, Y, Z, or a custom axis. */
+  	tilt(angleDeg: number, axis?: "x" | "y" | "z" | Vec3$1): SdfShape;
+  	/** Sculpt-style rounded-box helper. Currently applies directly to primitive SDF boxes. */
+  	round(radius: number): SdfShape;
+  	/** Sculpt-style smooth blend with another implicit shape. */
+  	blend(other: SdfShape, options?: number | {
+  		radius?: number;
+  	}): SdfShape;
+  	/** Sculpt-style alias for blend(). */
+  	goop(other: SdfShape, options?: number | {
+  		radius?: number;
+  	}): SdfShape;
+  	/** Sculpt-style smooth carve/subtract. */
+  	carve(other: SdfShape, options?: number | {
+  		radius?: number;
+  	}): SdfShape;
+  	/** Sculpt-style smooth intersection/keep operation. */
+  	keep(other: SdfShape, options?: number | {
+  		radius?: number;
+  	}): SdfShape;
+  	/** Apply a Sculpt material preset or direct material props. */
+  	polish(input?: SculptPolishInput): SdfShape;
   	/** SDF union (sharp). */
   	union(...others: SdfShape[]): SdfShape;
   	/** SDF difference (sharp) — subtracts others from this. */
   	subtract(...others: SdfShape[]): SdfShape;
   	/** SDF intersection (sharp). */
   	intersect(...others: SdfShape[]): SdfShape;
+  	/** Clip this SDF to an explicit box-shaped design space. */
+  	clipBox(x: number, y: number, z: number): SdfShape;
+  	/** Keep only the material where this shape overlaps another SDF pattern. */
+  	fillWith(pattern: SdfShape): SdfShape;
+  	/** Keep only the gyroid lattice inside this shape. */
+  	fillWithGyroid(options: TpmsOptions): SdfShape;
+  	/** Keep only the Schwarz-P lattice inside this shape. */
+  	fillWithSchwarzP(options: TpmsOptions): SdfShape;
+  	/** Keep only the diamond TPMS lattice inside this shape. */
+  	fillWithDiamond(options: TpmsOptions): SdfShape;
+  	/** Keep only the lidinoid TPMS lattice inside this shape. */
+  	fillWithLidinoid(options: TpmsOptions): SdfShape;
   	/** Smooth union — blends shapes together with a smooth radius. */
   	smoothUnion(other: SdfShape, radius: number): SdfShape;
   	/** Smooth difference — smoothly carves other from this. */
@@ -6963,8 +7835,17 @@ declare namespace sdf {
   	smoothIntersect(other: SdfShape, radius: number): SdfShape;
   	/** Morph between this shape and another. t=0 → this, t=1 → other. */
   	morph(other: SdfShape, t: number): SdfShape;
+  	/** Translate this SDF by the given offsets in millimeters. */
   	translate(x: number, y: number, z: number): SdfShape;
-  	rotate(xDeg: number, yDeg: number, zDeg: number): SdfShape;
+  	/** Rotate around an arbitrary axis through the origin. */
+  	rotate(axis: Vec3$1, angleDeg: number): SdfShape;
+  	/** Rotate around the X axis by the given angle in degrees. */
+  	rotateX(angleDeg: number): SdfShape;
+  	/** Rotate around the Y axis by the given angle in degrees. */
+  	rotateY(angleDeg: number): SdfShape;
+  	/** Rotate around the Z axis by the given angle in degrees. */
+  	rotateZ(angleDeg: number): SdfShape;
+  	/** Uniformly scale this SDF around the origin. */
   	scale(factor: number): SdfShape;
   	/** Twist around the Z axis. */
   	twist(degreesPerUnit: number): SdfShape;
@@ -6972,6 +7853,14 @@ declare namespace sdf {
   	bend(radius: number): SdfShape;
   	/** Repeat in space. Spacing of 0 on an axis means no repetition. Count of 0 = infinite. */
   	repeat(spacing: Vec3$1, count?: Vec3$1): SdfShape;
+  	/**
+  	 * Arrange this SDF in a circular array around the Z axis.
+  	 *
+  	 * The source shape is translated by `offset` in +X before arraying. This uses
+  	 * angular domain folding, so evaluation stays O(1): the source SDF is sampled
+  	 * twice no matter how many copies are requested.
+  	 */
+  	circularArray(count: number, offset?: number): SdfShape;
   	/** Hollow out, keeping only a shell of given thickness. */
   	shell(thickness: number): SdfShape;
   	/**
@@ -7017,6 +7906,12 @@ declare namespace sdf {
   		min: Vec3$1;
   		max: Vec3$1;
   	};
+  	/** Coarse quality preset. Accepted for API parity; resolution is driven by edgeLength/bounds. */
+  	quality?: string;
+  	/** Preferred absolute surface tolerance in millimeters. Accepted for API parity. */
+  	tolerance?: number;
+  	/** Smallest feature that should survive meshing, in millimeters. Accepted for API parity. */
+  	minFeatureSize?: number;
   }
   export interface SurfaceDisplaceOptions {
   	/** Override auto-detected UV mode. Default: 'auto' (detects from SDF tree). */
@@ -7030,6 +7925,12 @@ declare namespace sdf {
   	/** Named constants injected into the function. */
   	readonly constants?: Record<string, number>;
   	constructor(body: string, constants?: Record<string, number>);
+  }
+  export interface TpmsBlockOptions extends TpmsOptions {
+  	/** Which TPMS field to use. Default: 'gyroid'. */
+  	type?: "gyroid" | "schwarzP" | "diamond" | "lidinoid";
+  	/** Box-shaped design space (full dimensions in mm). */
+  	size: Vec3$1;
   }
   export interface TpmsOptions {
   	cellSize: number;
@@ -7071,19 +7972,23 @@ declare namespace sdf {
   export function box(x: number, y: number, z: number): SdfShape;
   export function brick(options?: BrickOptions): SdfShape;
   export function capsule(height: number, radius: number): SdfShape;
+  export function circularArray(shape: SdfShape, count: number, offset?: number): SdfShape;
+  export function combine(value: SdfShape | SdfShape[], options?: CombineOptions): SdfShape;
   export function cone(height: number, radius: number): SdfShape;
   export function cylinder(height: number, radius: number): SdfShape;
   export function diamond(options: TpmsOptions): SdfShape;
-  export function fromFunction(fn: (x: number, y: number, z: number) => number, bounds: {
-  	min: Vec3$1;
-  	max: Vec3$1;
-  }, constants?: Record<string, number>): SdfShape;
+  export function fromFunction(fn: (x: number, y: number, z: number, ...constants: number[]) => number, options: SdfFunctionOptions): SdfShape;
   export function gyroid(options: TpmsOptions): SdfShape;
   export function honeycomb(options?: HoneycombOptions): SdfShape;
   export function knurl(options?: KnurlOptions): SdfShape;
   export function lidinoid(options: TpmsOptions): SdfShape;
   export function morph(a: SdfShape, b: SdfShape, t: number): SdfShape;
   export function noise(options?: NoiseOptions): SdfShape;
+  export function pattern2d(): Pattern2DBuilder;
+  export function patternNd(shape: SdfShape, axes: {
+  	spacing: number;
+  	count?: number;
+  }[]): SdfShape;
   export function perforated(options?: PerforatedOptions): SdfShape;
   export function repeat(shape: SdfShape, spacing: Vec3$1, count?: Vec3$1): SdfShape;
   export function scales(options?: ScalesOptions): SdfShape;
@@ -7098,11 +8003,16 @@ declare namespace sdf {
   	radius: number;
   }): SdfShape;
   export function sphere(radius: number): SdfShape;
+  export function toShape(value: SdfShape, options?: SdfToShapeOptions): Shape;
   export function torus(majorRadius: number, minorRadius: number): SdfShape;
+  export function tpmsBlock(options: TpmsBlockOptions): SdfShape;
   export function twist(shape: SdfShape, degreesPerUnit: number): SdfShape;
   export function voronoi(options?: VoronoiOptions): SdfShape;
   export function waves(options?: WavesOptions): SdfShape;
   export function weave(options?: WeaveOptions): SdfShape;
+  export function withinBox(shape: SdfShape, options: {
+  	size: Vec3$1;
+  }): SdfShape;
 }
 /** All library parts. Access via `lib.xxx()` in scripts. */
 declare const lib: typeof partLibrary;

@@ -435,6 +435,26 @@ polar(length: number, angleDeg: number, from?: [ number, number ]): [ number, nu
 
 Compute a point by moving a given distance at a given angle from a start point. Angle is in degrees, measured CCW from the +X axis (standard math convention). Returns `[x, y]`. ```js polar(10, 45)            // [7.07, 7.07] — from origin polar(10, 45, [5, 5])    // [12.07, 12.07] — from (5,5) ```
 
+#### `knownSculptMaterialPresets()`
+
+```ts
+knownSculptMaterialPresets(): string[]
+```
+
+#### `sculptLook()`
+
+```ts
+sculptLook(preset?: SculptLookPreset): Record<string, unknown>
+```
+
+#### `compareWith()`
+
+```ts
+compareWith(reference: string, options?: Record<string, unknown>): void
+```
+
+Register a comparison of the current model against a reference asset (an STL/3MF mesh or another .forge.js model). Honored by `inspect comparison`.
+
 #### `fillet()`
 
 ```ts
@@ -466,6 +486,24 @@ offsetSolid(shape: ShapeArg$1, thickness: number): Shape
 ```
 
 Uniformly offset all surfaces of a solid inward or outward by a thickness value. Unlike shell(), which hollows a solid, offsetSolid() produces a new solid whose surfaces are all shifted by the given thickness. Positive = outward, negative = inward. Requires the OCCT backend. Throws on Manifold. // Grow a box outward by 1mm on all sides offsetSolid(myBox, 1) // Shrink a shape inward by 0.5mm offsetSolid(myShape, -0.5)
+
+#### `stringParam()`
+
+```ts
+stringParam(name: string, defaultValue: string, opts?: { maxLength?: number; }): string
+```
+
+#### `choiceParam()`
+
+```ts
+choiceParam(name: string, defaultValue: string, choices: string[]): string
+```
+
+#### `listParam()`
+
+```ts
+listParam<T extends Record<string, number | boolean | string>>(name: string, defaultItems: T[], _opts?: { fields?: unknown; minItems?: number; maxItems?: number; }): T[]
+```
 
 #### `loftAlongSpine()`
 
@@ -645,6 +683,62 @@ interface PolygonVerticesOptions {
 
 </details>
 
+#### `nurbs3d()`
+
+```ts
+nurbs3d(points: Vec3$5[], options?: NurbsCurve3DOptions): NurbsCurve3D
+```
+
+Create a NURBS curve from control points. With default options, creates a cubic non-rational B-spline with uniform clamped knots. Set `weights` for rational curves (exact circles, conics). Set `degree` for linear (1), quadratic (2), cubic (3), or higher-order curves. The returned curve can be passed directly to `sweep()` and `loftAlongSpine()`.
+
+<details><summary><code>NurbsCurve3DOptions</code></summary>
+
+```ts
+interface NurbsCurve3DOptions {
+  /** Polynomial degree (default 3 = cubic). Must be >= 1. */
+  degree?: number;
+  /** Rational weights, one per control point (default: all 1.0 = non-rational). */
+  weights?: number[];
+  /** Knot vector (default: uniform clamped). Length must be points.length + degree + 1. */
+  knots?: number[];
+  /** Whether the curve is closed/periodic (default false). */
+  closed?: boolean;
+}
+```
+
+</details>
+
+#### `nurbsSurface()`
+
+```ts
+nurbsSurface(controlGrid: Vec3$5[][], options?: NurbsSurfaceOptions): Shape
+```
+
+Create a NURBS surface from a grid of control points. The control grid is indexed as `controlGrid[u][v]`. With default options, creates a bicubic non-rational B-spline surface with uniform clamped knots. When `thickness > 0` the surface is thickened into a solid sheet (default 0 → a thin sheet using a small default thickness so a printable/exportable solid is produced).
+
+<details><summary><code>NurbsSurfaceOptions</code></summary>
+
+```ts
+interface NurbsSurfaceOptions {
+  /** Degree in U direction (default 3). */
+  degreeU?: number;
+  /** Degree in V direction (default 3). */
+  degreeV?: number;
+  /** Weights grid — same dimensions as controlGrid (default: all 1.0). */
+  weights?: number[][];
+  /** Knot vector in U direction (default: uniform clamped). */
+  knotsU?: number[];
+  /** Knot vector in V direction (default: uniform clamped). */
+  knotsV?: number[];
+  /** Sheet thickness — if > 0, thickens the surface into a solid (default 0). */
+  thickness?: number;
+  /** Tessellation resolution — points per direction (default 32). */
+  resolution?: number;
+}
+```
+
+</details>
+
 #### `routePerimeter()`
 
 ```ts
@@ -711,11 +805,11 @@ Create a smooth transition curve between two edges. Returns a `HermiteCurve3D` t
 ```ts
 interface TransitionEdge {
   /** Connection point on the edge. Can be any point along the edge where the transition should connect. */
-  point: Vec3$6;
+  point: Vec3$7;
   /** Tangent direction at the connection point. This is the direction the curve should initially follow when leaving this edge. For a straight edge, this is typically the edge direction pointing "outward" (away from the body of the edge, toward the other edge). */
-  tangent: Vec3$6;
+  tangent: Vec3$7;
   /** Surface normal at the connection point (optional). Used as a hint for the sweep frame's up vector. */
-  normal?: Vec3$6;
+  normal?: Vec3$7;
 }
 ```
 
@@ -756,7 +850,7 @@ interface TransitionSurfaceOptions extends TransitionCurveOptions {
   width: number;
   height: number;
   /** Preferred up vector for the sweep frame. Default: auto-detected. */
-  up?: Vec3$6;
+  up?: Vec3$7;
   /** Edge length for level-set meshing. Smaller = finer. */
   edgeLength?: number;
   /** Extra bounds padding for level-set meshing. */
@@ -769,7 +863,7 @@ interface TransitionSurfaceOptions extends TransitionCurveOptions {
 #### `transitionCurveFromPoints()`
 
 ```ts
-transitionCurveFromPoints(startPoint: Vec3$6, startTangent: Vec3$6, endPoint: Vec3$6, endTangent: Vec3$6, options?: TransitionCurveOptions): HermiteCurve3D
+transitionCurveFromPoints(startPoint: Vec3$7, startTangent: Vec3$7, endPoint: Vec3$7, endTangent: Vec3$7, options?: TransitionCurveOptions): HermiteCurve3D
 ```
 
 Convenience: create a transition curve from raw coordinate data. Useful when you have endpoints and directions as plain arrays without constructing TransitionEdge objects.
@@ -803,7 +897,7 @@ interface EdgePickOptions {
   /** How to determine the tangent direction. Default: 'along'. - 'along': tangent follows the edge direction - 'outward': tangent points along surface normal (requires EdgeSegment) - 'auto': automatically computed (toward the other edge) */
   tangentMode?: TangentMode;
   /** Explicit tangent override (ignores tangentMode). */
-  tangent?: Vec3$6;
+  tangent?: Vec3$7;
   /** Flip the computed tangent direction (useful for 'along' mode). */
   flip?: boolean;
 }
@@ -866,9 +960,9 @@ interface ConnectEdgesOptions extends TransitionSurfaceOptions {
   /** Tangent mode for edge B. Default: 'along'. */
   tangentModeB?: TangentMode;
   /** Explicit tangent for edge A. */
-  tangentA?: Vec3$6;
+  tangentA?: Vec3$7;
   /** Explicit tangent for edge B. */
-  tangentB?: Vec3$6;
+  tangentB?: Vec3$7;
   /** Flip tangent A. */
   flipA?: boolean;
   /** Flip tangent B. */
@@ -1013,6 +1107,96 @@ interface FaceDescendantMetadata {
 highlight(edge: EdgeRef, opts?: HighlightOptions): void
 ```
 
+#### `lib.boltedServiceCover()`
+
+```ts
+lib.boltedServiceCover(options: any): { parts: { name: string; shape: Shape; }[]; parent: Shape; cover: Shape; gasket: Shape | null; screws: Shape[]; boltPositions: [ number, number ][]; cutters: { coverClearance: Shape; parentTapped: Shape; parentThreadEnvelope: Shape; }; dims: { ... }; }
+```
+
+#### `lib.snapLatchCoverAssembly()`
+
+```ts
+lib.snapLatchCoverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; parent: Shape; cover: Shape; cutters: { serviceOpening: Shape; latchWindows: Shape; }; dims: { ... }; }
+```
+
+#### `lib.capturedCartridgeGuideAssembly()`
+
+```ts
+lib.capturedCartridgeGuideAssembly(options: any): { parts: { name: string; shape: Shape; }[]; guide: Shape; cartridge: Shape; dims: { ... }; }
+```
+
+#### `lib.capturedLinearSlide()`
+
+```ts
+lib.capturedLinearSlide(options: any): { parts: { name: string; shape: Shape; }[]; rail: Shape; carriage: Shape; dims: { ... }; }
+```
+
+#### `lib.clevisPinJointAssembly()`
+
+```ts
+lib.clevisPinJointAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; clevis: Shape; link: Shape; pin: Shape; cutters: { pinBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.pinnedLeverAssembly()`
+
+```ts
+lib.pinnedLeverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; support: Shape; lever: Shape; pin: Shape; washers: { lower: Shape; upper: Shape; }; cutters: { pivotBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.knuckledHingeAssembly()`
+
+```ts
+lib.knuckledHingeAssembly(options: any): { parts: { name: string; shape: Shape; }[]; fixedLeaf: Shape; movingLeaf: Shape; pin: Shape; cutters: { pinBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.livingHingeCoverAssembly()`
+
+```ts
+lib.livingHingeCoverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; cover: Shape; fixedLeaf: Shape; movingLeaf: Shape; hingeWeb: Shape; snapBarb: Shape; catchLand: Shape; dims: { ... }; }
+```
+
+#### `lib.retainedShaftAssembly()`
+
+```ts
+lib.retainedShaftAssembly(options: any): { parts: { name: string; shape: Shape; }[]; supports: { left: Shape; right: Shape; }; shaft: Shape; washers: { left: Shape; right: Shape; }; knobs: { left: Shape; right: Shape; }; cutters: { shaftBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.seatedBearingAssembly()`
+
+```ts
+lib.seatedBearingAssembly(options: any): { parts: { name: string; shape: Shape; }[]; housing: Shape; bearing: Shape; shaft: Shape; cutters: { bearingPocket: Shape; shaftBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.cableGlandAnchorAssembly()`
+
+```ts
+lib.cableGlandAnchorAssembly(options: any): { parts: { name: string; shape: Shape; }[]; panel: Shape; gland: Shape; compressionNut: Shape; cable: Shape; cutters: { panelHole: Shape; flangeSeatPocket: Shape; cableBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.hoseBarbPortAssembly()`
+
+```ts
+lib.hoseBarbPortAssembly(options: any): { parts: { name: string; shape: Shape; }[]; receiver: Shape; fitting: Shape; hose: Shape; clamp: Shape; cutters: { portBore: Shape; installedHoseBore: Shape; }; dims: { ... }; }
+```
+
+#### `lib.pcbTerminalBlockAssembly()`
+
+```ts
+lib.pcbTerminalBlockAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; backplate: Shape; pcb: Shape; terminalBlock: Shape; screws: Shape[]; mountingPositions: [ number, number ][]; pinPositions: [ number, number ][]; cutters: { pcbMountingHoles: Shape; pcbPinHoles: Shape; standoffThreadEnvelopes: Shape; }; dims: { ... }; }
+```
+
+#### `lib.thumbScrewClampAssembly()`
+
+```ts
+lib.thumbScrewClampAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; frame: Shape; workpiece: Shape; clampScrew: Shape; cutters: { threadedBossBore: Shape; workpieceEnvelope: Shape; }; dims: { ... }; }
+```
+
+#### `lib.datumEnclosureAssembly()`
+
+```ts
+lib.datumEnclosureAssembly(options: any): { parts: { name: string; shape: Shape; }[]; base: Shape; cover: Shape; gasket: Shape | null; screws: Shape[]; screwPositions: [ number, number ][]; cutters: { coverClearance: Shape; standoffTapped: Shape; standoffThreadEnvelope: Shape; servicePort: Shape; }; dims: { ... }; }
+```
+
 ---
 
 ## Classes
@@ -1060,6 +1244,7 @@ Core 3D solid shape. All operations are immutable and return new shapes. Support
 - `mirrorThrough()` — Mirror across a plane through an explicit point, defined by its normal vector (need not be unit length).
 - `pointAlong()` — Reorient a shape so its primary axis (Z) points along the given direction. Useful for laying cylinders/extrusions along X or Y without thinking about Euler angles. Example: cylinder(40, 5).pointAlong([1, 0, 0]) — lays cylinder along X
 - `rotateAround()` — Rotate around an arbitrary axis through a pivot point. Equivalent to: translate(-pivot) → rotate around axis → translate(+pivot)
+- `rotateAroundAxis()` — Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround.
 - `rotateAroundTo()` — Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point. `movingPoint` / `targetPoint` may be raw world points or this shape's anchors/references.
 - `add()` — Union this shape with others (additive boolean). Method form of union().
 - `subtract()` — Subtract other shapes from this one. Method form of difference().
@@ -1123,6 +1308,7 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `transform()` — Apply a 4x4 transform matrix or Transform object. Topology is cleared.
 - `pointAlong()` — Reorient so primary axis (Z) points along direction. Topology is cleared.
 - `rotateAround()` — Rotate around an arbitrary axis through a pivot point. Topology is cleared.
+- `rotateAroundAxis()` — Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround. Topology is cleared.
 - `rotateAroundTo()` — Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point.
 - `scale()` — Scale the shape from its bounding box center. Topology is cleared for non-uniform scale.
 - `scaleAround()` — Scale the shape from an explicit pivot point. Topology is cleared.
@@ -1190,6 +1376,7 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `rotateY()` — Rotate around the Y axis by the given angle in degrees (optionally through a pivot point).
 - `rotateZ()` — Rotate around the Z axis by the given angle in degrees (optionally through a pivot point).
 - `rotateAround()` — Rotate around an arbitrary axis through a pivot point. Sugar for: group.transform(Transform.rotationAxis(axis, angleDeg, pivot))
+- `rotateAroundAxis()` — Rotate around an arbitrary axis, optionally through a pivot point. Alias-compatible with rotateAround.
 - `rotateAroundTo()` — Rotate around an axis until a moving point reaches the target line/plane defined by the axis and target point. ShapeGroup string points use built-in anchors only.
 - `pointAlong()` — Reorient all 3D children so their primary axis (Z) points along direction. Sugar for a single group-wide axis rotation via Transform.rotationAxis(...).
 - `transform()` — Apply a 4x4 transform matrix or Transform object to all 3D children.
@@ -1204,6 +1391,17 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `portNames()` — List named port identifiers carried by this group.
 - `referencePoint()` — Resolve a named placement reference or built-in Anchor3D to a 3D point. Named refs take priority over built-in anchors.
 - `placeReference()` — Translate the group so the given reference lands on the target coordinate. ```javascript const placed = require('./bracket-assembly.forge.js').group .placeReference('mountCenter', [0, 0, 50]); ```
+
+### `NurbsCurve3D`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `controlPoints` | `Vec3$5[]` | — |
+| `weights` | `number[]` | — |
+| `degree` | `number` | — |
+| `knots` | `number[]` | — |
 
 ---
 
@@ -1224,6 +1422,8 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `centersCoincide()` — Check that the bounding-box centers of two shapes coincide within tolerance (mm).
 - `notColliding()` — Check that two shapes do not collide (minGap > 0).
 - `minClearance()` — Check that a minimum clearance gap exists between two shapes.
+- `clearanceBetween()` — Check that the clearance gap between two shapes is inside an allowed range [minGap, maxGap]. Use a narrow band like [-0.01, 0.05] for seated contact, or the intended band for a running fit.
+- `intentionalOverlap()` — Declare that two visible objects intentionally share volume (welded, overmolded, potted, cast-in, etc.). Records a passing annotation; the mechanical-integrity inspector honors it when both shapes are visible.
 - `parallel()` — Check that two face normals are parallel (within toleranceDeg degrees).
 - `perpendicular()` — Check that two face normals are perpendicular (within toleranceDeg degrees).
 - `coplanar()` — Check that a face is coplanar with (same plane as) another face, meaning they are parallel AND their centers lie on the same plane.
