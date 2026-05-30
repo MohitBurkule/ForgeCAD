@@ -117,9 +117,45 @@ export function compileScript(code: string, fileName: string, options: RunnerExe
     source: code,
     code: transpiled.outputText.replace(/\n\/\/# sourceMappingURL=.*$/u, ''),
     sourceMapSegments: decodeSourceMapSegments(transpiled.sourceMapText),
+    topLevelDeclarations: collectTopLevelDeclarations(code, fileName),
   };
   options.compiledFiles.set(fileName, compiled);
   return compiled;
+}
+
+/**
+ * Collect the names of top-level declarations (const/let/var/function/class) in the user
+ * source. The runner injects runtime globals as function parameters; a user declaration with
+ * the same name would otherwise throw "Identifier 'x' has already been declared". By reporting
+ * these names, the runner can omit the colliding injected globals so user code wins.
+ */
+function collectTopLevelDeclarations(code: string, fileName: string): string[] {
+  const sourceFile = ts.createSourceFile(fileName, code, ts.ScriptTarget.ES2020, false, ts.ScriptKind.JS);
+  const names = new Set<string>();
+
+  const addFromBindingName = (name: ts.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      names.add(name.text);
+    } else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      for (const element of name.elements) {
+        if (ts.isBindingElement(element)) {
+          addFromBindingName(element.name);
+        }
+      }
+    }
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isVariableStatement(statement)) {
+      for (const decl of statement.declarationList.declarations) {
+        addFromBindingName(decl.name);
+      }
+    } else if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) {
+      names.add(statement.name.text);
+    }
+  }
+
+  return [...names];
 }
 
 function mapGeneratedPositionToSource(

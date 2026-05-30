@@ -101,6 +101,12 @@ export interface CompiledScript {
   source: string;
   code: string;
   sourceMapSegments: SourceMapSegment[][];
+  /**
+   * Names declared at the top level of the user script (const/let/var/function/class).
+   * Injected runtime globals matching these names are omitted so user declarations win
+   * instead of throwing "Identifier 'x' has already been declared".
+   */
+  topLevelDeclarations: string[];
 }
 
 export interface ModuleCacheEntry {
