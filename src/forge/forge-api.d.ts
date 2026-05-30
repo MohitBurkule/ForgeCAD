@@ -205,6 +205,7 @@ interface FaceQuery {
 	planar?: boolean;
 }
 type FaceSelector = string | FaceQuery;
+type ConnectorGender = "male" | "female" | "neutral";
 interface PortDef {
 	origin: Vec3;
 	axis: Vec3;
@@ -213,6 +214,9 @@ interface PortDef {
 	kind?: JointType;
 	min?: number;
 	max?: number;
+	connectorType?: string;
+	gender?: ConnectorGender;
+	measurements?: Record<string, number | string>;
 }
 type PortAlign = "middle" | "start" | "end";
 interface PortInput {
@@ -251,6 +255,33 @@ declare namespace portFactory {
 	var revolute: (input: PortInput) => PortDef;
 	var prismatic: (input: PortInput) => PortDef;
 	var fixed: (input: PortInput) => PortDef;
+}
+type ConnectorGender$1 = "male" | "female" | "neutral";
+interface ConnectorInput extends PortInput {
+	connectorType?: string;
+	gender?: ConnectorGender$1;
+	measurements?: Record<string, number | string>;
+}
+type ConnectorDef = PortDef;
+type ConnectorMap = PortMap;
+interface MatchToOptions {
+	force?: boolean;
+	angle?: number;
+	distance?: number;
+}
+/**
+ * Create a connector — a named attachment point on a shape.
+ *
+ * Overloads:
+ * - `connector(geometry)` — bare connector (position + orientation only)
+ * - `connector(type, geometry)` — typed connector for compatibility matching
+ * - `connector(type, geometry, measurements)` — typed with measurement metadata
+ */
+declare function connectorFactory(typeOrInput: string | PortInput, inputOrMeasurements?: PortInput | Record<string, number | string>, measurements?: Record<string, number | string>): ConnectorInput;
+declare namespace connectorFactory {
+	var male: (typeOrInput: string | PortInput, inputOrMeasurements?: PortInput | Record<string, number | string>, measurements?: Record<string, number | string>) => ConnectorInput;
+	var female: (typeOrInput: string | PortInput, inputOrMeasurements?: PortInput | Record<string, number | string>, measurements?: Record<string, number | string>) => ConnectorInput;
+	var neutral: (typeOrInput: string | PortInput, inputOrMeasurements?: PortInput | Record<string, number | string>, measurements?: Record<string, number | string>) => ConnectorInput;
 }
 interface ConstraintTypeMap {
 	/**
@@ -2202,6 +2233,28 @@ declare class TrackedShape {
 	withPorts(ports: Record<string, PortInput>): TrackedShape;
 	/** List named port identifiers carried by this shape. */
 	portNames(): string[];
+	/** Attach named connectors that survive transforms and imports. */
+	withConnectors(connectors: Record<string, ConnectorInput>): TrackedShape;
+	/** List connector names carried by this shape. */
+	connectorNames(): string[];
+	/** Get connectors of a given connector type. */
+	connectorsByType(type: string): Array<{
+		name: string;
+		port: PortDef;
+	}>;
+	/** Distance between two connector origins on this shape. */
+	connectorDistance(nameA: string, nameB: string): number;
+	/** Get measurements metadata from a connector. */
+	connectorMeasurements(name: string): Record<string, number | string>;
+	/**
+	 * Position this shape by matching its connector(s) to a target's connector(s),
+	 * preserving tracked topology.
+	 */
+	matchTo(targetOrPairs: Shape | TrackedShape | Array<[
+		Shape | TrackedShape,
+		string,
+		string
+	]>, selfConnOrDict?: string | Record<string, string> | MatchToOptions, targetConnOrOptions?: string | MatchToOptions, maybeOptions?: MatchToOptions): TrackedShape;
 	/** List named placement references carried by this tracked shape. */
 	referenceNames(kind?: "points" | "edges" | "surfaces" | "objects"): string[];
 	/** Resolve a named placement reference or built-in anchor to a 3D point. */
@@ -2916,6 +2969,36 @@ declare class Shape {
 	withPorts(ports: Record<string, PortInput>): Shape;
 	/** List named port identifiers carried by this shape. */
 	portNames(): string[];
+	/**
+	 * Attach named connectors — typed/gendered attachment points used to assemble
+	 * fixed multi-part objects. Connectors are ports with optional connector
+	 * metadata; they survive transforms and imports.
+	 */
+	withConnectors(connectors: Record<string, ConnectorInput>): Shape;
+	/** List connector names carried by this shape. */
+	connectorNames(): string[];
+	/** Get connectors of a given connector type. */
+	connectorsByType(type: string): Array<{
+		name: string;
+		port: PortDef;
+	}>;
+	/** Distance between two connector origins on this shape. */
+	connectorDistance(nameA: string, nameB: string): number;
+	/** Get measurements metadata from a connector. */
+	connectorMeasurements(name: string): Record<string, number | string>;
+	/**
+	 * Position this shape by matching its connector(s) to a target's connector(s).
+	 *
+	 * Overloads:
+	 * - Single pair: `matchTo(target, selfConn, targetConn, options?)`
+	 * - Dictionary: `matchTo(target, { selfConn: targetConn, ... }, options?)`
+	 * - Multi-target: `matchTo([[target, selfConn, targetConn], ...], options?)`
+	 */
+	matchTo(targetOrPairs: Shape | Array<[
+		Shape,
+		string,
+		string
+	]>, selfConnOrDict?: string | Record<string, string> | MatchToOptions, targetConnOrOptions?: string | MatchToOptions, maybeOptions?: MatchToOptions): Shape;
 	/** Resolve a named placement reference or built-in anchor to a 3D point. */
 	referencePoint(ref: PlacementAnchorLike): [
 		number,
@@ -3411,6 +3494,21 @@ declare class ShapeGroup {
 	withPorts(ports: Record<string, PortInput>): ShapeGroup;
 	/** List named port identifiers carried by this group. */
 	portNames(): string[];
+	/** Attach named connectors to this group (own ports, not children). */
+	withConnectors(connectors: Record<string, PortInput>): ShapeGroup;
+	/** Internal: expose aggregated connector ports (own + named children) for matchTo. */
+	getConnectorPorts(): PortMap;
+	/** List all connector names, including dotted "Child.connector" paths. */
+	connectorNames(): string[];
+	/** Get all connectors of a given type, including from named children. */
+	connectorsByType(type: string): {
+		name: string;
+		port: ConnectorDef;
+	}[];
+	/** Distance between two connector origins on this group (supports dotted child paths). */
+	connectorDistance(nameA: string, nameB: string): number;
+	/** Get measurements metadata from a connector (supports dotted child paths). */
+	connectorMeasurements(name: string): Record<string, number | string>;
 	/**
 	 * Resolve a named placement reference or built-in Anchor3D to a 3D point.
 	 * Named refs take priority over built-in anchors.
@@ -4741,6 +4839,740 @@ interface FaceGearPairResult {
 	diagnostics: GearPairDiagnostic[];
 	status: "ok" | "warn" | "error";
 }
+interface GearBodyDiskOptions {
+	outerRadius: number;
+	faceWidth: number;
+	boreDiameter?: number;
+	segments?: number;
+}
+interface GearBodyDiskWithHubOptions extends GearBodyDiskOptions {
+	hubDiameter: number;
+	hubFaceWidth?: number;
+}
+interface GearBodySpokedOptions extends GearBodyDiskOptions {
+	rimWidth: number;
+	hubDiameter: number;
+	spokeCount: number;
+	spokeWidth: number;
+}
+interface GearBodyFromProfileOptions {
+	faceWidth: number;
+	boreDiameter?: number;
+}
+declare function gearBodyDisk(options: GearBodyDiskOptions): Shape;
+declare function gearBodyDiskWithHub(options: GearBodyDiskWithHubOptions): Shape;
+declare function gearBodySpoked(options: GearBodySpokedOptions): Shape;
+declare function gearBodyFromProfile(profile: Sketch, options: GearBodyFromProfileOptions): Shape;
+type DriveWheelRegionKind = "body" | "spurTeeth" | "solidArc" | "custom";
+interface DriveWheelRegionMeta {
+	name: string;
+	kind: DriveWheelRegionKind;
+	fromAngleDeg?: number;
+	toAngleDeg?: number;
+	innerRadius?: number;
+	outerRadius?: number;
+	module?: number;
+	teethOnFullCircle?: number;
+	toothCount?: number;
+	pitchRadius?: number;
+	rootRadius?: number;
+	faceWidth?: number;
+}
+interface DriveWheelMeta {
+	kind: "driveWheel";
+	faceWidth: number;
+	boreDiameter: number;
+	regions: DriveWheelRegionMeta[];
+}
+interface DriveWheelOptions {
+	body?: Shape;
+	faceWidth?: number;
+	boreDiameter?: number;
+}
+interface DriveWheelSpurTeethRegionOptions extends Omit<SpurGearOptions, "teeth" | "faceWidth" | "boreDiameter"> {
+	name?: string;
+	teethOnFullCircle: number;
+	toothCount: number;
+	firstTooth?: number;
+	faceWidth?: number;
+}
+interface DriveWheelSolidArcRegionOptions {
+	name?: string;
+	fromAngleDeg: number;
+	toAngleDeg: number;
+	innerRadius?: number;
+	outerRadius: number;
+	faceWidth?: number;
+	segments?: number;
+}
+interface DriveWheelShapeRegionOptions {
+	fromAngleDeg?: number;
+	toAngleDeg?: number;
+	innerRadius?: number;
+	outerRadius?: number;
+}
+declare class DriveWheelBuilder {
+	private readonly body?;
+	private readonly faceWidth?;
+	private readonly boreDiameter;
+	private readonly regions;
+	constructor(options?: DriveWheelOptions);
+	/**
+	 * Add an involute spur-tooth window on part of the pitch circle.
+	 */
+	addSpurTeethBetween(options: DriveWheelSpurTeethRegionOptions): this;
+	/**
+	 * Add a constant-radius solid arc region such as a dwell, stop, or pusher.
+	 */
+	addSolidArcBetween(options: DriveWheelSolidArcRegionOptions): this;
+	/**
+	 * Add a fully custom region shape while preserving region metadata.
+	 */
+	addShapeRegion(name: string, shape: Shape, options?: DriveWheelShapeRegionOptions): this;
+	/**
+	 * Build the final wheel shape with a bore connector and region metadata.
+	 */
+	build(): Shape;
+	private measurements;
+	private regionMetadata;
+	private resolveFaceWidth;
+	private resolveBuildFaceWidth;
+	private defaultBodyRadius;
+	private resolveName;
+}
+interface SectorGearOptions extends Omit<SpurGearOptions, "teeth"> {
+	teethOnFullCircle: number;
+	toothCount: number;
+	firstTooth?: number;
+	body?: Shape;
+}
+type BeltVec2 = [
+	number,
+	number
+];
+type BeltMode = "open" | "crossed";
+interface TangentCircle2D {
+	name?: string;
+	center: BeltVec2;
+	radius: number;
+}
+interface BeltPulley2D {
+	name?: string;
+	center: BeltVec2;
+	pitchRadius: number;
+}
+interface TangentLoop2DOptions {
+	/** `open` uses external tangents; `crossed` uses internal tangents. */
+	mode?: BeltMode;
+}
+interface BeltDriveOptions {
+	pulleys: BeltPulley2D[] | Record<string, Omit<BeltPulley2D, "name"> & {
+		name?: string;
+	}>;
+	/** Belt width along +Z. */
+	beltWidth: number;
+	/** Belt thickness in the pulley plane. Default 2mm. */
+	beltThickness?: number;
+	/**
+	 * Reserved for multi-pulley route intent. The first implementation supports
+	 * two-pulley routes and rejects multi-pulley calls with explicit guidance.
+	 */
+	route?: "outer" | BeltRouteContact[];
+	/** Visual stroke width for the returned pitch path sketch. Default 0.25mm. */
+	pitchPathWidth?: number;
+}
+interface BeltRouteContact {
+	pulley: string;
+	wrap?: "cw" | "ccw" | "short" | "long";
+	tangentIn?: "left" | "right" | "internal" | "external";
+	tangentOut?: "left" | "right" | "internal" | "external";
+}
+interface BeltLineSpan {
+	kind: "line";
+	fromPulley: string;
+	toPulley: string;
+	from: BeltVec2;
+	to: BeltVec2;
+	length: number;
+}
+interface BeltWrapArc {
+	kind: "arc";
+	pulley: string;
+	center: BeltVec2;
+	pitchRadius: number;
+	from: BeltVec2;
+	to: BeltVec2;
+	sweepDeg: number;
+	wrapDeg: number;
+	length: number;
+	tangentIn: BeltVec2;
+	tangentOut: BeltVec2;
+}
+type BeltPathSegment = BeltLineSpan | BeltWrapArc;
+interface BeltDriveResult {
+	belt: Shape;
+	beltProfile: Sketch;
+	pitchPath: Sketch;
+	route: TangentLoop2D;
+	length: number;
+	wraps: BeltWrapArc[];
+	wrapByPulley: Record<string, BeltWrapArc>;
+	straightSpans: BeltLineSpan[];
+	skippedPulleys: string[];
+}
+declare class TangentLoop2D {
+	readonly circles: TangentCircle2D[];
+	readonly mode: BeltMode;
+	readonly segments: BeltPathSegment[];
+	readonly straightSpans: BeltLineSpan[];
+	readonly wraps: BeltWrapArc[];
+	readonly wrapByPulley: Record<string, BeltWrapArc>;
+	readonly length: number;
+	constructor(circles: TangentCircle2D[], options?: TangentLoop2DOptions);
+	/** Convert the loop centerline into a thin visual sketch. */
+	toSketch(width?: number): Sketch;
+	/** Convert the loop into a filled profile using the pitch path itself as the boundary. */
+	toProfile(): Sketch;
+	/** Build a belt band sketch by offsetting the route to inner and outer pulley radii. */
+	offsetBand(thickness: number): Sketch;
+}
+declare function tangentLoop2d(circles: TangentCircle2D[], options?: TangentLoop2DOptions): TangentLoop2D;
+declare function beltDrive(options: BeltDriveOptions): BeltDriveResult;
+declare function boltedServiceCover(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	parent: Shape;
+	cover: Shape;
+	gasket: Shape | null;
+	screws: Shape[];
+	boltPositions: [
+		number,
+		number
+	][];
+	cutters: {
+		coverClearance: Shape;
+		parentTapped: Shape;
+		parentThreadEnvelope: Shape;
+	};
+	dims: {
+		width: number;
+		depth: number;
+		coverThickness: number;
+		parentThickness: number;
+		ledgeWidth: number;
+		gasketThickness: number;
+		screwSize: MetricSize;
+		screwLength: number;
+		clearanceDia: number;
+		tapDia: number;
+		threadEnvelopeDia: number;
+	};
+};
+declare function snapLatchCoverAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	parent: Shape;
+	cover: Shape;
+	cutters: {
+		serviceOpening: Shape;
+		latchWindows: Shape;
+	};
+	dims: {
+		width: number;
+		depth: number;
+		parentWidth: number;
+		parentDepth: number;
+		openingWidth: number;
+		openingDepth: number;
+		coverThickness: number;
+		parentThickness: number;
+		ledgeWidth: number;
+		latchWidth: number;
+		latchThickness: number;
+		hookThrow: number;
+		hookThickness: number;
+		runningClearance: number;
+		faceClearance: number;
+	};
+};
+declare function capturedCartridgeGuideAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	guide: Shape;
+	cartridge: Shape;
+	dims: {
+		length: number;
+		guideWidth: number;
+		innerWidth: number;
+		throatWidth: number;
+		baseThickness: number;
+		wallThickness: number;
+		wallHeight: number;
+		lipWidth: number;
+		lipThickness: number;
+		rearStopLength: number;
+		cartridgeLength: number;
+		cartridgeWidth: number;
+		cartridgeBodyWidth: number;
+		cartridgeHeight: number;
+		flangeThickness: number;
+		pullTabLength: number;
+		runningClearance: number;
+		maxInsertion: number;
+		insertion: any;
+		cartridgeCenterX: any;
+	};
+};
+declare function capturedLinearSlide(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	rail: Shape;
+	carriage: Shape;
+	dims: {
+		length: number;
+		railWidth: number;
+		innerWidth: number;
+		throatWidth: number;
+		baseThickness: number;
+		wallThickness: number;
+		wallHeight: number;
+		lipWidth: number;
+		lipThickness: number;
+		carriageLength: number;
+		carriageWidth: number;
+		carriageThickness: number;
+		endStopLength: number;
+		runningClearance: number;
+		maxTravel: number;
+		travel: any;
+		carriageCenterX: any;
+	};
+};
+declare function clevisPinJointAssembly(options?: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	clevis: Shape;
+	link: Shape;
+	pin: Shape;
+	cutters: {
+		pinBore: Shape;
+	};
+	dims: {
+		pinDiameter: number;
+		boreDiameter: number;
+		linkThickness: number;
+		earThickness: number;
+		runningClearance: number;
+		earLength: number;
+		earHeight: number;
+		linkArmLength: number;
+		linkArmWidth: number;
+		eyeOuterRadius: number;
+		retainerThickness: number;
+		pinLength: number;
+		clevisGap: number;
+	};
+};
+declare function pinnedLeverAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	support: Shape;
+	lever: Shape;
+	pin: Shape;
+	washers: {
+		lower: Shape;
+		upper: Shape;
+	};
+	cutters: {
+		pivotBore: Shape;
+	};
+	dims: {
+		armLength: number;
+		armWidth: number;
+		leverThickness: number;
+		hubRadius: number;
+		pinDiameter: number;
+		boreDiameter: number;
+		supportWidth: number;
+		supportDepth: number;
+		supportThickness: number;
+		washerSize: MetricSize;
+		washerThickness: number;
+		stackHeight: number;
+	};
+};
+declare function knuckledHingeAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	fixedLeaf: Shape;
+	movingLeaf: Shape;
+	pin: Shape;
+	cutters: {
+		pinBore: Shape;
+	};
+	dims: {
+		length: number;
+		leafLength: number;
+		leafThickness: number;
+		barrelOuterRadius: number;
+		pinDiameter: number;
+		boreDiameter: number;
+		knuckleGap: number;
+		knuckleCount: any;
+		knuckleLength: number;
+		openAngleDeg: any;
+		retainerThickness: number;
+	};
+};
+declare function livingHingeCoverAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	cover: Shape;
+	fixedLeaf: Shape;
+	movingLeaf: Shape;
+	hingeWeb: Shape;
+	snapBarb: Shape;
+	catchLand: Shape;
+	dims: {
+		width: number;
+		coverDepth: number;
+		fixedLeafDepth: number;
+		leafThickness: number;
+		hingeWebWidth: number;
+		hingeWebThickness: number;
+		pullLipDepth: number;
+		snapBarbWidth: number;
+		snapBarbDepth: number;
+		snapBarbHeight: number;
+		catchLandDepth: number;
+		flexRatio: number;
+		overallDepth: number;
+	};
+};
+declare function retainedShaftAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	supports: {
+		left: Shape;
+		right: Shape;
+	};
+	shaft: Shape;
+	washers: {
+		left: Shape;
+		right: Shape;
+	};
+	knobs: {
+		left: Shape;
+		right: Shape;
+	};
+	cutters: {
+		shaftBore: Shape;
+	};
+	dims: {
+		supportSpacing: number;
+		supportThickness: number;
+		supportWidth: number;
+		supportHeight: number;
+		shaftDiameter: number;
+		shaftLength: number;
+		boreDiameter: number;
+		washerSize: MetricSize;
+		washerThickness: number;
+		knobDiameter: number;
+		knobThickness: number;
+		retainerThickness: number;
+		runningClearance: number;
+	};
+};
+declare function seatedBearingAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	housing: Shape;
+	bearing: Shape;
+	shaft: Shape;
+	cutters: {
+		bearingPocket: Shape;
+		shaftBore: Shape;
+	};
+	dims: {
+		bearingOuterDiameter: number;
+		bearingInnerDiameter: number;
+		bearingWidth: number;
+		shaftDiameter: number;
+		housingWidth: number;
+		housingDepth: number;
+		housingThickness: number;
+		bossOuterDiameter: number;
+		bossHeight: number;
+		totalHousingHeight: number;
+		pocketDiameter: number;
+		pocketDepth: number;
+		shaftBoreDiameter: number;
+		runningClearance: number;
+		shaftLength: number;
+		shoulderDiameter: number;
+		shoulderThickness: number;
+	};
+};
+declare function cableGlandAnchorAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	panel: Shape;
+	gland: Shape;
+	compressionNut: Shape;
+	cable: Shape;
+	cutters: {
+		panelHole: Shape;
+		flangeSeatPocket: Shape;
+		cableBore: Shape;
+	};
+	dims: {
+		cableDiameter: number;
+		cableBoreDiameter: number;
+		panelThickness: number;
+		panelWidth: number;
+		panelHeight: number;
+		glandOuterDiameter: number;
+		glandLength: number;
+		nutOuterDiameter: number;
+		nutThickness: number;
+		flangeDiameter: number;
+		flangeThickness: number;
+		runningClearance: number;
+		faceClearance: number;
+		flangePocketDepth: number;
+		panelHoleDiameter: number;
+		cableLength: number;
+	};
+};
+declare function hoseBarbPortAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	receiver: Shape;
+	fitting: Shape;
+	hose: Shape;
+	clamp: Shape;
+	cutters: {
+		portBore: Shape;
+		installedHoseBore: Shape;
+	};
+	dims: {
+		hoseInnerDiameter: number;
+		hoseOuterDiameter: number;
+		installedHoseBoreDiameter: number;
+		blockThickness: number;
+		blockWidth: number;
+		blockHeight: number;
+		bossDiameter: number;
+		bossHeight: number;
+		fluidBoreDiameter: number;
+		barbRootDiameter: number;
+		barbPeakDiameter: number;
+		barbCount: any;
+		barbLength: number;
+		barbStackLength: number;
+		shoulderDiameter: number;
+		shoulderThickness: number;
+		hoseLength: number;
+		clampWidth: number;
+		clampThickness: number;
+		runningClearance: number;
+		faceClearance: number;
+	};
+};
+declare function pcbTerminalBlockAssembly(options?: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	backplate: Shape;
+	pcb: Shape;
+	terminalBlock: Shape;
+	screws: Shape[];
+	mountingPositions: [
+		number,
+		number
+	][];
+	pinPositions: [
+		number,
+		number
+	][];
+	cutters: {
+		pcbMountingHoles: Shape;
+		pcbPinHoles: Shape;
+		standoffThreadEnvelopes: Shape;
+	};
+	dims: {
+		terminalCount: any;
+		terminalPitch: number;
+		boardWidth: number;
+		boardDepth: number;
+		boardThickness: number;
+		backplateWidth: number;
+		backplateDepth: number;
+		backplateThickness: number;
+		standoffHeight: number;
+		standoffDiameter: number;
+		screwSize: MetricSize;
+		screwDiameter: number;
+		screwHeadDiameter: number;
+		screwHeadHeight: number;
+		screwShaftLength: number;
+		boardMountingHoleDiameter: number;
+		standoffThreadEnvelopeDiameter: number;
+		terminalBlockWidth: number;
+		terminalBlockDepth: number;
+		terminalBlockHeight: number;
+		terminalEdgeInset: number;
+		pinDiameter: number;
+		pinClearance: number;
+		pinHoleDiameter: number;
+		pinTailLength: number;
+		wirePortDiameter: number;
+	};
+};
+declare function thumbScrewClampAssembly(options?: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	frame: Shape;
+	workpiece: Shape;
+	clampScrew: Shape;
+	cutters: {
+		threadedBossBore: Shape;
+		workpieceEnvelope: Shape;
+	};
+	dims: {
+		screwSize: MetricSize;
+		screwDiameter: number;
+		threadEnvelopeDiameter: number;
+		workpieceThickness: number;
+		workpieceDepth: number;
+		workpieceHeight: number;
+		frameDepth: number;
+		frameHeight: number;
+		baseThickness: number;
+		jawThickness: number;
+		supportThickness: number;
+		bossLength: number;
+		bossDiameter: number;
+		exposedScrewLength: number;
+		pressurePadDiameter: number;
+		pressurePadThickness: number;
+		knobDiameter: number;
+		knobThickness: number;
+		screwCenterZ: number;
+		fixedAnvilFaceX: number;
+		pressurePadFaceX: number;
+		supportInnerFaceX: number;
+		runningClearance: number;
+		faceClearance: number;
+	};
+};
+declare function datumEnclosureAssembly(options: any): {
+	parts: {
+		name: string;
+		shape: Shape;
+	}[];
+	base: Shape;
+	cover: Shape;
+	gasket: Shape | null;
+	screws: Shape[];
+	screwPositions: [
+		number,
+		number
+	][];
+	cutters: {
+		coverClearance: Shape;
+		standoffTapped: Shape;
+		standoffThreadEnvelope: Shape;
+		servicePort: Shape;
+	};
+	dims: {
+		width: number;
+		depth: number;
+		height: number;
+		innerWidth: number;
+		innerDepth: number;
+		wallThickness: number;
+		baseThickness: number;
+		coverThickness: number;
+		ledgeWidth: number;
+		gasketThickness: number;
+		faceClearance: number;
+		screwSize: MetricSize;
+		screwLength: number;
+		standoffDiameter: number;
+		ribHeight: number;
+		ribThickness: number;
+		portWidth: number;
+		portHeight: number;
+		clearanceDia: number;
+		tapDia: number;
+		threadEnvelopeDia: number;
+	};
+};
+interface RoutedTubeClipAssemblyOptions {
+	tubeDiameter: number;
+	tubeLength?: number;
+	clipCount?: number;
+	screwSize?: MetricSize;
+	panelThickness?: number;
+	runningClearance?: number;
+	clipWallThickness?: number;
+	clipWidth?: number;
+	clipSpacing?: number;
+	panelLength?: number;
+	panelWidth?: number;
+	segments?: number;
+}
+interface RoutedTubeClipAssemblyResult {
+	parts: Array<{
+		name: string;
+		shape: Shape;
+	}>;
+	panel: Shape;
+	tube: Shape;
+	clips: Shape[];
+	screws: Shape[];
+	clipCenters: number[];
+	screwPositions: Array<[
+		number,
+		number
+	]>;
+	cutters: {
+		clipTubeBores: Shape;
+		clipScrewClearances: Shape;
+		panelThreadEnvelopes: Shape;
+	};
+	dims: Record<string, number | string>;
+}
+declare function routedTubeClipAssembly(options: RoutedTubeClipAssemblyOptions): RoutedTubeClipAssemblyResult;
 type WasherStandard = "din-125-a";
 interface FastenerSetDimensions {
 	size: MetricSize;
@@ -5016,505 +5848,67 @@ declare const partLibrary: {
  */
 
 	sideGearPair(options: SideGearPairOptions): SideGearPairResult;
-	boltedServiceCover(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	parent: Shape;
-	cover: Shape;
-	gasket: Shape | null;
-	screws: Shape[];
-	boltPositions: [
-		number,
-		number
-	][];
-	cutters: {
-		coverClearance: Shape;
-		parentTapped: Shape;
-		parentThreadEnvelope: Shape;
+/**
+ * Involute sector gear with teeth on only part of the pitch circle.
+ *
+ * Specify the full-circle pitch as `teethOnFullCircle`, then choose the active
+ * tooth window with `firstTooth` and `toothCount`. The body is separate from
+ * the tooth region: pass a `gearBody...` shape for spokes, hubs, and product
+ * styling, or omit it for a simple root-radius disk.
+ *
+ * **Example**
+ *
+ * ```ts
+ * const body = lib.gearBodies.spoked({
+ *   outerRadius: 22, rimWidth: 3, hubDiameter: 10,
+ *   spokeCount: 5, spokeWidth: 2.5, faceWidth: 8, boreDiameter: 5,
+ * });
+ * const sector = lib.sectorGear({
+ *   module: 1.25, teethOnFullCircle: 36, toothCount: 10,
+ *   faceWidth: 8, body,
+ * });
+ * ```
+ */
+
+	sectorGear(options: SectorGearOptions): Shape;
+/**
+ * Start a composable exceptional gear or drive wheel.
+ */
+
+	driveWheel(options?: DriveWheelOptions): DriveWheelBuilder;
+/**
+ * Read the functional-region metadata attached by `driveWheel().build()`.
+ */
+
+	readDriveWheelMeta(shape: Shape): DriveWheelMeta | null;
+	gearBodies: {
+		disk: typeof gearBodyDisk;
+		diskWithHub: typeof gearBodyDiskWithHub;
+		spoked: typeof gearBodySpoked;
+		fromProfile: typeof gearBodyFromProfile;
 	};
-	dims: {
-		width: number;
-		depth: number;
-		coverThickness: number;
-		parentThickness: number;
-		ledgeWidth: number;
-		gasketThickness: number;
-		screwSize: MetricSize;
-		screwLength: number;
-		clearanceDia: number;
-		tapDia: number;
-		threadEnvelopeDia: number;
-	};
-};
-	snapLatchCoverAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	parent: Shape;
-	cover: Shape;
-	cutters: {
-		serviceOpening: Shape;
-		latchWindows: Shape;
-	};
-	dims: {
-		width: number;
-		depth: number;
-		parentWidth: number;
-		parentDepth: number;
-		openingWidth: number;
-		openingDepth: number;
-		coverThickness: number;
-		parentThickness: number;
-		ledgeWidth: number;
-		latchWidth: number;
-		latchThickness: number;
-		hookThrow: number;
-		hookThickness: number;
-		runningClearance: number;
-		faceClearance: number;
-	};
-};
-	capturedCartridgeGuideAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	guide: Shape;
-	cartridge: Shape;
-	dims: {
-		length: number;
-		guideWidth: number;
-		innerWidth: number;
-		throatWidth: number;
-		baseThickness: number;
-		wallThickness: number;
-		wallHeight: number;
-		lipWidth: number;
-		lipThickness: number;
-		rearStopLength: number;
-		cartridgeLength: number;
-		cartridgeWidth: number;
-		cartridgeBodyWidth: number;
-		cartridgeHeight: number;
-		flangeThickness: number;
-		pullTabLength: number;
-		runningClearance: number;
-		maxInsertion: number;
-		insertion: any;
-		cartridgeCenterX: any;
-	};
-};
-	capturedLinearSlide(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	rail: Shape;
-	carriage: Shape;
-	dims: {
-		length: number;
-		railWidth: number;
-		innerWidth: number;
-		throatWidth: number;
-		baseThickness: number;
-		wallThickness: number;
-		wallHeight: number;
-		lipWidth: number;
-		lipThickness: number;
-		carriageLength: number;
-		carriageWidth: number;
-		carriageThickness: number;
-		endStopLength: number;
-		runningClearance: number;
-		maxTravel: number;
-		travel: any;
-		carriageCenterX: any;
-	};
-};
-	clevisPinJointAssembly(options?: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	clevis: Shape;
-	link: Shape;
-	pin: Shape;
-	cutters: {
-		pinBore: Shape;
-	};
-	dims: {
-		pinDiameter: number;
-		boreDiameter: number;
-		linkThickness: number;
-		earThickness: number;
-		runningClearance: number;
-		earLength: number;
-		earHeight: number;
-		linkArmLength: number;
-		linkArmWidth: number;
-		eyeOuterRadius: number;
-		retainerThickness: number;
-		pinLength: number;
-		clevisGap: number;
-	};
-};
-	pinnedLeverAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	support: Shape;
-	lever: Shape;
-	pin: Shape;
-	washers: {
-		lower: Shape;
-		upper: Shape;
-	};
-	cutters: {
-		pivotBore: Shape;
-	};
-	dims: {
-		armLength: number;
-		armWidth: number;
-		leverThickness: number;
-		hubRadius: number;
-		pinDiameter: number;
-		boreDiameter: number;
-		supportWidth: number;
-		supportDepth: number;
-		supportThickness: number;
-		washerSize: MetricSize;
-		washerThickness: number;
-		stackHeight: number;
-	};
-};
-	knuckledHingeAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	fixedLeaf: Shape;
-	movingLeaf: Shape;
-	pin: Shape;
-	cutters: {
-		pinBore: Shape;
-	};
-	dims: {
-		length: number;
-		leafLength: number;
-		leafThickness: number;
-		barrelOuterRadius: number;
-		pinDiameter: number;
-		boreDiameter: number;
-		knuckleGap: number;
-		knuckleCount: any;
-		knuckleLength: number;
-		openAngleDeg: any;
-		retainerThickness: number;
-	};
-};
-	livingHingeCoverAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	cover: Shape;
-	fixedLeaf: Shape;
-	movingLeaf: Shape;
-	hingeWeb: Shape;
-	snapBarb: Shape;
-	catchLand: Shape;
-	dims: {
-		width: number;
-		coverDepth: number;
-		fixedLeafDepth: number;
-		leafThickness: number;
-		hingeWebWidth: number;
-		hingeWebThickness: number;
-		pullLipDepth: number;
-		snapBarbWidth: number;
-		snapBarbDepth: number;
-		snapBarbHeight: number;
-		catchLandDepth: number;
-		flexRatio: number;
-		overallDepth: number;
-	};
-};
-	retainedShaftAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	supports: {
-		left: Shape;
-		right: Shape;
-	};
-	shaft: Shape;
-	washers: {
-		left: Shape;
-		right: Shape;
-	};
-	knobs: {
-		left: Shape;
-		right: Shape;
-	};
-	cutters: {
-		shaftBore: Shape;
-	};
-	dims: {
-		supportSpacing: number;
-		supportThickness: number;
-		supportWidth: number;
-		supportHeight: number;
-		shaftDiameter: number;
-		shaftLength: number;
-		boreDiameter: number;
-		washerSize: MetricSize;
-		washerThickness: number;
-		knobDiameter: number;
-		knobThickness: number;
-		retainerThickness: number;
-		runningClearance: number;
-	};
-};
-	seatedBearingAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	housing: Shape;
-	bearing: Shape;
-	shaft: Shape;
-	cutters: {
-		bearingPocket: Shape;
-		shaftBore: Shape;
-	};
-	dims: {
-		bearingOuterDiameter: number;
-		bearingInnerDiameter: number;
-		bearingWidth: number;
-		shaftDiameter: number;
-		housingWidth: number;
-		housingDepth: number;
-		housingThickness: number;
-		bossOuterDiameter: number;
-		bossHeight: number;
-		totalHousingHeight: number;
-		pocketDiameter: number;
-		pocketDepth: number;
-		shaftBoreDiameter: number;
-		runningClearance: number;
-		shaftLength: number;
-		shoulderDiameter: number;
-		shoulderThickness: number;
-	};
-};
-	cableGlandAnchorAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	panel: Shape;
-	gland: Shape;
-	compressionNut: Shape;
-	cable: Shape;
-	cutters: {
-		panelHole: Shape;
-		flangeSeatPocket: Shape;
-		cableBore: Shape;
-	};
-	dims: {
-		cableDiameter: number;
-		cableBoreDiameter: number;
-		panelThickness: number;
-		panelWidth: number;
-		panelHeight: number;
-		glandOuterDiameter: number;
-		glandLength: number;
-		nutOuterDiameter: number;
-		nutThickness: number;
-		flangeDiameter: number;
-		flangeThickness: number;
-		runningClearance: number;
-		faceClearance: number;
-		flangePocketDepth: number;
-		panelHoleDiameter: number;
-		cableLength: number;
-	};
-};
-	hoseBarbPortAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	receiver: Shape;
-	fitting: Shape;
-	hose: Shape;
-	clamp: Shape;
-	cutters: {
-		portBore: Shape;
-		installedHoseBore: Shape;
-	};
-	dims: {
-		hoseInnerDiameter: number;
-		hoseOuterDiameter: number;
-		installedHoseBoreDiameter: number;
-		blockThickness: number;
-		blockWidth: number;
-		blockHeight: number;
-		bossDiameter: number;
-		bossHeight: number;
-		fluidBoreDiameter: number;
-		barbRootDiameter: number;
-		barbPeakDiameter: number;
-		barbCount: any;
-		barbLength: number;
-		barbStackLength: number;
-		shoulderDiameter: number;
-		shoulderThickness: number;
-		hoseLength: number;
-		clampWidth: number;
-		clampThickness: number;
-		runningClearance: number;
-		faceClearance: number;
-	};
-};
-	pcbTerminalBlockAssembly(options?: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	backplate: Shape;
-	pcb: Shape;
-	terminalBlock: Shape;
-	screws: Shape[];
-	mountingPositions: [
-		number,
-		number
-	][];
-	pinPositions: [
-		number,
-		number
-	][];
-	cutters: {
-		pcbMountingHoles: Shape;
-		pcbPinHoles: Shape;
-		standoffThreadEnvelopes: Shape;
-	};
-	dims: {
-		terminalCount: any;
-		terminalPitch: number;
-		boardWidth: number;
-		boardDepth: number;
-		boardThickness: number;
-		backplateWidth: number;
-		backplateDepth: number;
-		backplateThickness: number;
-		standoffHeight: number;
-		standoffDiameter: number;
-		screwSize: MetricSize;
-		screwDiameter: number;
-		screwHeadDiameter: number;
-		screwHeadHeight: number;
-		screwShaftLength: number;
-		boardMountingHoleDiameter: number;
-		standoffThreadEnvelopeDiameter: number;
-		terminalBlockWidth: number;
-		terminalBlockDepth: number;
-		terminalBlockHeight: number;
-		terminalEdgeInset: number;
-		pinDiameter: number;
-		pinClearance: number;
-		pinHoleDiameter: number;
-		pinTailLength: number;
-		wirePortDiameter: number;
-	};
-};
-	thumbScrewClampAssembly(options?: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	frame: Shape;
-	workpiece: Shape;
-	clampScrew: Shape;
-	cutters: {
-		threadedBossBore: Shape;
-		workpieceEnvelope: Shape;
-	};
-	dims: {
-		screwSize: MetricSize;
-		screwDiameter: number;
-		threadEnvelopeDiameter: number;
-		workpieceThickness: number;
-		workpieceDepth: number;
-		workpieceHeight: number;
-		frameDepth: number;
-		frameHeight: number;
-		baseThickness: number;
-		jawThickness: number;
-		supportThickness: number;
-		bossLength: number;
-		bossDiameter: number;
-		exposedScrewLength: number;
-		pressurePadDiameter: number;
-		pressurePadThickness: number;
-		knobDiameter: number;
-		knobThickness: number;
-		screwCenterZ: number;
-		fixedAnvilFaceX: number;
-		pressurePadFaceX: number;
-		supportInnerFaceX: number;
-		runningClearance: number;
-		faceClearance: number;
-	};
-};
-	datumEnclosureAssembly(options: any): {
-	parts: {
-		name: string;
-		shape: Shape;
-	}[];
-	base: Shape;
-	cover: Shape;
-	gasket: Shape | null;
-	screws: Shape[];
-	screwPositions: [
-		number,
-		number
-	][];
-	cutters: {
-		coverClearance: Shape;
-		standoffTapped: Shape;
-		standoffThreadEnvelope: Shape;
-		servicePort: Shape;
-	};
-	dims: {
-		width: number;
-		depth: number;
-		height: number;
-		innerWidth: number;
-		innerDepth: number;
-		wallThickness: number;
-		baseThickness: number;
-		coverThickness: number;
-		ledgeWidth: number;
-		gasketThickness: number;
-		faceClearance: number;
-		screwSize: MetricSize;
-		screwLength: number;
-		standoffDiameter: number;
-		ribHeight: number;
-		ribThickness: number;
-		portWidth: number;
-		portHeight: number;
-		clearanceDia: number;
-		tapDia: number;
-		threadEnvelopeDia: number;
-	};
-};
+	gearBodyDisk: typeof gearBodyDisk;
+	gearBodyDiskWithHub: typeof gearBodyDiskWithHub;
+	gearBodySpoked: typeof gearBodySpoked;
+	gearBodyFromProfile: typeof gearBodyFromProfile;
+	beltDrive: typeof beltDrive;
+	tangentLoop2d: typeof tangentLoop2d;
+	boltedServiceCover: typeof boltedServiceCover;
+	snapLatchCoverAssembly: typeof snapLatchCoverAssembly;
+	capturedCartridgeGuideAssembly: typeof capturedCartridgeGuideAssembly;
+	capturedLinearSlide: typeof capturedLinearSlide;
+	clevisPinJointAssembly: typeof clevisPinJointAssembly;
+	pinnedLeverAssembly: typeof pinnedLeverAssembly;
+	knuckledHingeAssembly: typeof knuckledHingeAssembly;
+	livingHingeCoverAssembly: typeof livingHingeCoverAssembly;
+	retainedShaftAssembly: typeof retainedShaftAssembly;
+	seatedBearingAssembly: typeof seatedBearingAssembly;
+	cableGlandAnchorAssembly: typeof cableGlandAnchorAssembly;
+	hoseBarbPortAssembly: typeof hoseBarbPortAssembly;
+	pcbTerminalBlockAssembly: typeof pcbTerminalBlockAssembly;
+	thumbScrewClampAssembly: typeof thumbScrewClampAssembly;
+	datumEnclosureAssembly: typeof datumEnclosureAssembly;
+	routedTubeClipAssembly: typeof routedTubeClipAssembly;
 };
 /**
  * Declare a parameter. Returns the current value (default or overridden).
@@ -7481,6 +7875,18 @@ declare const verify: {
 	 * Check that two numbers are approximately equal (within tolerance).
 	 */
 	equal(label: string, actual: number, expected: number, tolerance?: number, message?: string): void;
+	/**
+	 * Check that two named connectors on an assembled shape or group are seated
+	 * within tolerance of each other.
+	 *
+	 * Connector names support dotted child paths on groups: `"Child.connector"`.
+	 *
+	 * @example
+	 * verify.connectorDistance("leg is seated", bench, "Rail.leg_0", "Leg0.head", 0, 0.01);
+	 */
+	connectorDistance(label: string, target: {
+		connectorDistance(a: string, b: string): number;
+	}, connectorA: string, connectorB: string, expected?: number, tolerance?: number): void;
 	/**
 	 * Check that two numbers are NOT equal (differ by more than tolerance).
 	 */

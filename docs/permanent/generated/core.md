@@ -422,6 +422,30 @@ interface PortDef {
   kind?: JointType;
   min?: number;
   max?: number;
+  connectorType?: string;
+  gender?: ConnectorGender;
+  measurements?: Record<string, number | string>;
+}
+```
+
+</details>
+
+#### `connectorFactory()`
+
+```ts
+connectorFactory(typeOrInput: string | PortInput, inputOrMeasurements?: PortInput | Record<string, number | string>, measurements?: Record<string, number | string>): ConnectorInput
+```
+
+Create a connector — a named attachment point on a shape. Overloads: - `connector(geometry)` — bare connector (position + orientation only) - `connector(type, geometry)` — typed connector for compatibility matching - `connector(type, geometry, measurements)` — typed with measurement metadata
+
+
+<details><summary><code>ConnectorInput</code> extends PortInput</summary>
+
+```ts
+interface ConnectorInput extends PortInput {
+  connectorType?: string;
+  gender?: ConnectorGender$1;
+  measurements?: Record<string, number | string>;
 }
 ```
 
@@ -486,6 +510,336 @@ offsetSolid(shape: ShapeArg$1, thickness: number): Shape
 ```
 
 Uniformly offset all surfaces of a solid inward or outward by a thickness value. Unlike shell(), which hollows a solid, offsetSolid() produces a new solid whose surfaces are all shifted by the given thickness. Positive = outward, negative = inward. Requires the OCCT backend. Throws on Manifold. // Grow a box outward by 1mm on all sides offsetSolid(myBox, 1) // Shrink a shape inward by 0.5mm offsetSolid(myShape, -0.5)
+
+#### `gearBodyDisk()`
+
+```ts
+gearBodyDisk(options: GearBodyDiskOptions): Shape
+```
+
+<details><summary><code>GearBodyDiskOptions</code></summary>
+
+```ts
+interface GearBodyDiskOptions {
+  outerRadius: number;
+  faceWidth: number;
+  boreDiameter?: number;
+  segments?: number;
+}
+```
+
+</details>
+
+#### `gearBodyDiskWithHub()`
+
+```ts
+gearBodyDiskWithHub(options: GearBodyDiskWithHubOptions): Shape
+```
+
+
+<details><summary><code>GearBodyDiskWithHubOptions</code> extends GearBodyDiskOptions</summary>
+
+```ts
+interface GearBodyDiskWithHubOptions extends GearBodyDiskOptions {
+  hubDiameter: number;
+  hubFaceWidth?: number;
+}
+```
+
+</details>
+
+#### `gearBodySpoked()`
+
+```ts
+gearBodySpoked(options: GearBodySpokedOptions): Shape
+```
+
+
+<details><summary><code>GearBodySpokedOptions</code> extends GearBodyDiskOptions</summary>
+
+```ts
+interface GearBodySpokedOptions extends GearBodyDiskOptions {
+  rimWidth: number;
+  hubDiameter: number;
+  spokeCount: number;
+  spokeWidth: number;
+}
+```
+
+</details>
+
+#### `gearBodyFromProfile()`
+
+```ts
+gearBodyFromProfile(profile: Sketch, options: GearBodyFromProfileOptions): Shape
+```
+
+<details><summary><code>GearBodyFromProfileOptions</code></summary>
+
+```ts
+interface GearBodyFromProfileOptions {
+  faceWidth: number;
+  boreDiameter?: number;
+}
+```
+
+</details>
+
+#### `tangentLoop2d()`
+
+```ts
+tangentLoop2d(circles: TangentCircle2D[], options?: TangentLoop2DOptions): TangentLoop2D
+```
+
+<details><summary><code>TangentCircle2D</code></summary>
+
+```ts
+interface TangentCircle2D {
+  name?: string;
+  center: BeltVec2;
+  radius: number;
+}
+```
+
+</details>
+
+<details><summary><code>TangentLoop2DOptions</code></summary>
+
+```ts
+interface TangentLoop2DOptions {
+  /** `open` uses external tangents; `crossed` uses internal tangents. */
+  mode?: BeltMode;
+}
+```
+
+</details>
+
+#### `beltDrive()`
+
+```ts
+beltDrive(options: BeltDriveOptions): BeltDriveResult
+```
+
+<details><summary><code>BeltDriveOptions</code></summary>
+
+```ts
+interface BeltDriveOptions {
+  name?: string;
+  /** Belt width along +Z. */
+  beltWidth: number;
+  /** Belt thickness in the pulley plane. Default 2mm. */
+  beltThickness?: number;
+  /** Reserved for multi-pulley route intent. The first implementation supports two-pulley routes and rejects multi-pulley calls with explicit guidance. */
+  route?: "outer" | BeltRouteContact[];
+  /** Visual stroke width for the returned pitch path sketch. Default 0.25mm. */
+  pitchPathWidth?: number;
+}
+```
+
+</details>
+
+<details><summary><code>BeltRouteContact</code></summary>
+
+```ts
+interface BeltRouteContact {
+  pulley: string;
+  wrap?: "cw" | "ccw" | "short" | "long";
+  tangentIn?: "left" | "right" | "internal" | "external";
+  tangentOut?: "left" | "right" | "internal" | "external";
+}
+```
+
+</details>
+
+<details><summary><code>BeltDriveResult</code></summary>
+
+```ts
+interface BeltDriveResult {
+  belt: Shape;
+  beltProfile: Sketch;
+  pitchPath: Sketch;
+  route: TangentLoop2D;
+  length: number;
+  wraps: BeltWrapArc[];
+  wrapByPulley: Record<string, BeltWrapArc>;
+  straightSpans: BeltLineSpan[];
+  skippedPulleys: string[];
+}
+```
+
+</details>
+
+<details><summary><code>BeltWrapArc</code></summary>
+
+```ts
+interface BeltWrapArc {
+  kind: "arc";
+  pulley: string;
+  center: BeltVec2;
+  pitchRadius: number;
+  from: BeltVec2;
+  to: BeltVec2;
+  sweepDeg: number;
+  wrapDeg: number;
+  length: number;
+  tangentIn: BeltVec2;
+  tangentOut: BeltVec2;
+}
+```
+
+</details>
+
+<details><summary><code>BeltLineSpan</code></summary>
+
+```ts
+interface BeltLineSpan {
+  kind: "line";
+  fromPulley: string;
+  toPulley: string;
+  from: BeltVec2;
+  to: BeltVec2;
+  length: number;
+}
+```
+
+</details>
+
+#### `boltedServiceCover()`
+
+```ts
+boltedServiceCover(options: any): { parts: { name: string; shape: Shape; }[]; parent: Shape; cover: Shape; gasket: Shape | null; screws: Shape[]; boltPositions: [ number, number ][]; cutters: { coverClearance: Shape; parentTapped: Shape; parentThreadEnvelope: Shape; }; dims: { ... }; }
+```
+
+#### `snapLatchCoverAssembly()`
+
+```ts
+snapLatchCoverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; parent: Shape; cover: Shape; cutters: { serviceOpening: Shape; latchWindows: Shape; }; dims: { ... }; }
+```
+
+#### `capturedCartridgeGuideAssembly()`
+
+```ts
+capturedCartridgeGuideAssembly(options: any): { parts: { name: string; shape: Shape; }[]; guide: Shape; cartridge: Shape; dims: { ... }; }
+```
+
+#### `capturedLinearSlide()`
+
+```ts
+capturedLinearSlide(options: any): { parts: { name: string; shape: Shape; }[]; rail: Shape; carriage: Shape; dims: { ... }; }
+```
+
+#### `clevisPinJointAssembly()`
+
+```ts
+clevisPinJointAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; clevis: Shape; link: Shape; pin: Shape; cutters: { pinBore: Shape; }; dims: { ... }; }
+```
+
+#### `pinnedLeverAssembly()`
+
+```ts
+pinnedLeverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; support: Shape; lever: Shape; pin: Shape; washers: { lower: Shape; upper: Shape; }; cutters: { pivotBore: Shape; }; dims: { ... }; }
+```
+
+#### `knuckledHingeAssembly()`
+
+```ts
+knuckledHingeAssembly(options: any): { parts: { name: string; shape: Shape; }[]; fixedLeaf: Shape; movingLeaf: Shape; pin: Shape; cutters: { pinBore: Shape; }; dims: { ... }; }
+```
+
+#### `livingHingeCoverAssembly()`
+
+```ts
+livingHingeCoverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; cover: Shape; fixedLeaf: Shape; movingLeaf: Shape; hingeWeb: Shape; snapBarb: Shape; catchLand: Shape; dims: { ... }; }
+```
+
+#### `retainedShaftAssembly()`
+
+```ts
+retainedShaftAssembly(options: any): { parts: { name: string; shape: Shape; }[]; supports: { left: Shape; right: Shape; }; shaft: Shape; washers: { left: Shape; right: Shape; }; knobs: { left: Shape; right: Shape; }; cutters: { shaftBore: Shape; }; dims: { ... }; }
+```
+
+#### `seatedBearingAssembly()`
+
+```ts
+seatedBearingAssembly(options: any): { parts: { name: string; shape: Shape; }[]; housing: Shape; bearing: Shape; shaft: Shape; cutters: { bearingPocket: Shape; shaftBore: Shape; }; dims: { ... }; }
+```
+
+#### `cableGlandAnchorAssembly()`
+
+```ts
+cableGlandAnchorAssembly(options: any): { parts: { name: string; shape: Shape; }[]; panel: Shape; gland: Shape; compressionNut: Shape; cable: Shape; cutters: { panelHole: Shape; flangeSeatPocket: Shape; cableBore: Shape; }; dims: { ... }; }
+```
+
+#### `hoseBarbPortAssembly()`
+
+```ts
+hoseBarbPortAssembly(options: any): { parts: { name: string; shape: Shape; }[]; receiver: Shape; fitting: Shape; hose: Shape; clamp: Shape; cutters: { portBore: Shape; installedHoseBore: Shape; }; dims: { ... }; }
+```
+
+#### `pcbTerminalBlockAssembly()`
+
+```ts
+pcbTerminalBlockAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; backplate: Shape; pcb: Shape; terminalBlock: Shape; screws: Shape[]; mountingPositions: [ number, number ][]; pinPositions: [ number, number ][]; cutters: { pcbMountingHoles: Shape; pcbPinHoles: Shape; standoffThreadEnvelopes: Shape; }; dims: { ... }; }
+```
+
+#### `thumbScrewClampAssembly()`
+
+```ts
+thumbScrewClampAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; frame: Shape; workpiece: Shape; clampScrew: Shape; cutters: { threadedBossBore: Shape; workpieceEnvelope: Shape; }; dims: { ... }; }
+```
+
+#### `datumEnclosureAssembly()`
+
+```ts
+datumEnclosureAssembly(options: any): { parts: { name: string; shape: Shape; }[]; base: Shape; cover: Shape; gasket: Shape | null; screws: Shape[]; screwPositions: [ number, number ][]; cutters: { coverClearance: Shape; standoffTapped: Shape; standoffThreadEnvelope: Shape; servicePort: Shape; }; dims: { ... }; }
+```
+
+#### `routedTubeClipAssembly()`
+
+```ts
+routedTubeClipAssembly(options: RoutedTubeClipAssemblyOptions): RoutedTubeClipAssemblyResult
+```
+
+<details><summary><code>RoutedTubeClipAssemblyOptions</code></summary>
+
+```ts
+interface RoutedTubeClipAssemblyOptions {
+  tubeDiameter: number;
+  tubeLength?: number;
+  clipCount?: number;
+  screwSize?: MetricSize;
+  panelThickness?: number;
+  runningClearance?: number;
+  clipWallThickness?: number;
+  clipWidth?: number;
+  clipSpacing?: number;
+  panelLength?: number;
+  panelWidth?: number;
+  segments?: number;
+}
+```
+
+</details>
+
+<details><summary><code>RoutedTubeClipAssemblyResult</code></summary>
+
+```ts
+interface RoutedTubeClipAssemblyResult {
+  name: string;
+  shape: Shape;
+  panel: Shape;
+  tube: Shape;
+  clips: Shape[];
+  screws: Shape[];
+  clipCenters: number[];
+  clipTubeBores: Shape;
+  clipScrewClearances: Shape;
+  panelThreadEnvelopes: Shape;
+  dims: Record<string, number | string>;
+}
+```
+
+</details>
 
 #### `stringParam()`
 
@@ -1107,95 +1461,88 @@ interface FaceDescendantMetadata {
 highlight(edge: EdgeRef, opts?: HighlightOptions): void
 ```
 
-#### `lib.boltedServiceCover()`
+#### `lib.sectorGear()`
 
 ```ts
-lib.boltedServiceCover(options: any): { parts: { name: string; shape: Shape; }[]; parent: Shape; cover: Shape; gasket: Shape | null; screws: Shape[]; boltPositions: [ number, number ][]; cutters: { coverClearance: Shape; parentTapped: Shape; parentThreadEnvelope: Shape; }; dims: { ... }; }
+lib.sectorGear(options: SectorGearOptions): Shape
 ```
 
-#### `lib.snapLatchCoverAssembly()`
+Involute sector gear with teeth on only part of the pitch circle. Specify the full-circle pitch as `teethOnFullCircle`, then choose the active tooth window with `firstTooth` and `toothCount`. The body is separate from the tooth region: pass a `gearBody...` shape for spokes, hubs, and product styling, or omit it for a simple root-radius disk. **Example** ```ts const body = lib.gearBodies.spoked({ outerRadius: 22, rimWidth: 3, hubDiameter: 10, spokeCount: 5, spokeWidth: 2.5, faceWidth: 8, boreDiameter: 5, }); const sector = lib.sectorGear({ module: 1.25, teethOnFullCircle: 36, toothCount: 10, faceWidth: 8, body, }); ```
+
+<details><summary><code>SectorGearOptions</code></summary>
 
 ```ts
-lib.snapLatchCoverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; parent: Shape; cover: Shape; cutters: { serviceOpening: Shape; latchWindows: Shape; }; dims: { ... }; }
+interface SectorGearOptions {
+  teethOnFullCircle: number;
+  toothCount: number;
+  firstTooth?: number;
+  body?: Shape;
+}
 ```
 
-#### `lib.capturedCartridgeGuideAssembly()`
+</details>
+
+#### `lib.driveWheel()`
 
 ```ts
-lib.capturedCartridgeGuideAssembly(options: any): { parts: { name: string; shape: Shape; }[]; guide: Shape; cartridge: Shape; dims: { ... }; }
+lib.driveWheel(options?: DriveWheelOptions): DriveWheelBuilder
 ```
 
-#### `lib.capturedLinearSlide()`
+Start a composable exceptional gear or drive wheel.
+
+<details><summary><code>DriveWheelOptions</code></summary>
 
 ```ts
-lib.capturedLinearSlide(options: any): { parts: { name: string; shape: Shape; }[]; rail: Shape; carriage: Shape; dims: { ... }; }
+interface DriveWheelOptions {
+  body?: Shape;
+  faceWidth?: number;
+  boreDiameter?: number;
+}
 ```
 
-#### `lib.clevisPinJointAssembly()`
+</details>
+
+#### `lib.readDriveWheelMeta()`
 
 ```ts
-lib.clevisPinJointAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; clevis: Shape; link: Shape; pin: Shape; cutters: { pinBore: Shape; }; dims: { ... }; }
+lib.readDriveWheelMeta(shape: Shape): DriveWheelMeta | null
 ```
 
-#### `lib.pinnedLeverAssembly()`
+Read the functional-region metadata attached by `driveWheel().build()`.
+
+<details><summary><code>DriveWheelMeta</code></summary>
 
 ```ts
-lib.pinnedLeverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; support: Shape; lever: Shape; pin: Shape; washers: { lower: Shape; upper: Shape; }; cutters: { pivotBore: Shape; }; dims: { ... }; }
+interface DriveWheelMeta {
+  kind: "driveWheel";
+  faceWidth: number;
+  boreDiameter: number;
+  regions: DriveWheelRegionMeta[];
+}
 ```
 
-#### `lib.knuckledHingeAssembly()`
+</details>
+
+<details><summary><code>DriveWheelRegionMeta</code></summary>
 
 ```ts
-lib.knuckledHingeAssembly(options: any): { parts: { name: string; shape: Shape; }[]; fixedLeaf: Shape; movingLeaf: Shape; pin: Shape; cutters: { pinBore: Shape; }; dims: { ... }; }
+interface DriveWheelRegionMeta {
+  name: string;
+  kind: DriveWheelRegionKind;
+  fromAngleDeg?: number;
+  toAngleDeg?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  module?: number;
+  teethOnFullCircle?: number;
+  toothCount?: number;
+  pitchRadius?: number;
+  rootRadius?: number;
+  faceWidth?: number;
+}
 ```
 
-#### `lib.livingHingeCoverAssembly()`
-
-```ts
-lib.livingHingeCoverAssembly(options: any): { parts: { name: string; shape: Shape; }[]; cover: Shape; fixedLeaf: Shape; movingLeaf: Shape; hingeWeb: Shape; snapBarb: Shape; catchLand: Shape; dims: { ... }; }
-```
-
-#### `lib.retainedShaftAssembly()`
-
-```ts
-lib.retainedShaftAssembly(options: any): { parts: { name: string; shape: Shape; }[]; supports: { left: Shape; right: Shape; }; shaft: Shape; washers: { left: Shape; right: Shape; }; knobs: { left: Shape; right: Shape; }; cutters: { shaftBore: Shape; }; dims: { ... }; }
-```
-
-#### `lib.seatedBearingAssembly()`
-
-```ts
-lib.seatedBearingAssembly(options: any): { parts: { name: string; shape: Shape; }[]; housing: Shape; bearing: Shape; shaft: Shape; cutters: { bearingPocket: Shape; shaftBore: Shape; }; dims: { ... }; }
-```
-
-#### `lib.cableGlandAnchorAssembly()`
-
-```ts
-lib.cableGlandAnchorAssembly(options: any): { parts: { name: string; shape: Shape; }[]; panel: Shape; gland: Shape; compressionNut: Shape; cable: Shape; cutters: { panelHole: Shape; flangeSeatPocket: Shape; cableBore: Shape; }; dims: { ... }; }
-```
-
-#### `lib.hoseBarbPortAssembly()`
-
-```ts
-lib.hoseBarbPortAssembly(options: any): { parts: { name: string; shape: Shape; }[]; receiver: Shape; fitting: Shape; hose: Shape; clamp: Shape; cutters: { portBore: Shape; installedHoseBore: Shape; }; dims: { ... }; }
-```
-
-#### `lib.pcbTerminalBlockAssembly()`
-
-```ts
-lib.pcbTerminalBlockAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; backplate: Shape; pcb: Shape; terminalBlock: Shape; screws: Shape[]; mountingPositions: [ number, number ][]; pinPositions: [ number, number ][]; cutters: { pcbMountingHoles: Shape; pcbPinHoles: Shape; standoffThreadEnvelopes: Shape; }; dims: { ... }; }
-```
-
-#### `lib.thumbScrewClampAssembly()`
-
-```ts
-lib.thumbScrewClampAssembly(options?: any): { parts: { name: string; shape: Shape; }[]; frame: Shape; workpiece: Shape; clampScrew: Shape; cutters: { threadedBossBore: Shape; workpieceEnvelope: Shape; }; dims: { ... }; }
-```
-
-#### `lib.datumEnclosureAssembly()`
-
-```ts
-lib.datumEnclosureAssembly(options: any): { parts: { name: string; shape: Shape; }[]; base: Shape; cover: Shape; gasket: Shape | null; screws: Shape[]; screwPositions: [ number, number ][]; cutters: { coverClearance: Shape; standoffTapped: Shape; standoffThreadEnvelope: Shape; servicePort: Shape; }; dims: { ... }; }
-```
+</details>
 
 ---
 
@@ -1223,6 +1570,12 @@ Core 3D solid shape. All operations are immutable and return new shapes. Support
 - `referenceNames()` — List named placement references carried by this shape.
 - `withPorts()` — Attach named assembly ports (origin + axis + up) that survive transforms and imports.
 - `portNames()` — List named port identifiers carried by this shape.
+- `withConnectors()` — Attach named connectors — typed/gendered attachment points used to assemble fixed multi-part objects. Connectors are ports with optional connector metadata; they survive transforms and imports.
+- `connectorNames()` — List connector names carried by this shape.
+- `connectorsByType()` — Get connectors of a given connector type.
+- `connectorDistance()` — Distance between two connector origins on this shape.
+- `connectorMeasurements()` — Get measurements metadata from a connector.
+- `matchTo()` — Position this shape by matching its connector(s) to a target's connector(s). Overloads: - Single pair: `matchTo(target, selfConn, targetConn, options?)` - Dictionary: `matchTo(target, { selfConn: targetConn, ... }, options?)` - Multi-target: `matchTo([[target, selfConn, targetConn], ...], options?)`
 - `referencePoint()` — Resolve a named placement reference or built-in anchor to a 3D point.
 - `face()` — Resolve a semantic face by name or query.  Works on compile-covered shapes and, as a fallback, on any planar-faced mesh (e.g. the result of boolean ops) via coplanar triangle clustering.
 - `faces()` — Return all faces matching a query, or all mesh-detected faces when no query is given.
@@ -1294,6 +1647,12 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `withReferences()` — Attach named placement references that survive normal transforms and imports.
 - `withPorts()` — Attach named assembly ports (origin + axis + up) that survive transforms and imports.
 - `portNames()` — List named port identifiers carried by this shape.
+- `withConnectors()` — Attach named connectors that survive transforms and imports.
+- `connectorNames()` — List connector names carried by this shape.
+- `connectorsByType()` — Get connectors of a given connector type.
+- `connectorDistance()` — Distance between two connector origins on this shape.
+- `connectorMeasurements()` — Get measurements metadata from a connector.
+- `matchTo()` — Position this shape by matching its connector(s) to a target's connector(s), preserving tracked topology.
 - `referenceNames()` — List named placement references carried by this tracked shape.
 - `referencePoint()` — Resolve a named placement reference or built-in anchor to a 3D point.
 - `placeReference()` — Translate the tracked shape so the given reference lands on the target coordinate.
@@ -1390,8 +1749,43 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `referenceNames()` — List named placement references carried by this group.
 - `withPorts()` — Attach named assembly ports (origin + axis + up) that survive transforms.
 - `portNames()` — List named port identifiers carried by this group.
+- `withConnectors()` — Attach named connectors to this group (own ports, not children).
+- `getConnectorPorts()` — Internal: expose aggregated connector ports (own + named children) for matchTo.
+- `connectorNames()` — List all connector names, including dotted "Child.connector" paths.
+- `connectorsByType()` — Get all connectors of a given type, including from named children.
+- `connectorDistance()` — Distance between two connector origins on this group (supports dotted child paths).
+- `connectorMeasurements()` — Get measurements metadata from a connector (supports dotted child paths).
 - `referencePoint()` — Resolve a named placement reference or built-in Anchor3D to a 3D point. Named refs take priority over built-in anchors.
 - `placeReference()` — Translate the group so the given reference lands on the target coordinate. ```javascript const placed = require('./bracket-assembly.forge.js').group .placeReference('mountCenter', [0, 0, 50]); ```
+
+### `DriveWheelBuilder`
+
+**Methods:**
+
+- `addSpurTeethBetween()` — Add an involute spur-tooth window on part of the pitch circle.
+- `addSolidArcBetween()` — Add a constant-radius solid arc region such as a dwell, stop, or pusher.
+- `addShapeRegion()` — Add a fully custom region shape while preserving region metadata.
+- `build()` — Build the final wheel shape with a bore connector and region metadata.
+
+### `TangentLoop2D`
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `circles` | `TangentCircle2D[]` | — |
+| `mode` | `BeltMode` | — |
+| `segments` | `BeltPathSegment[]` | — |
+| `straightSpans` | `BeltLineSpan[]` | — |
+| `wraps` | `BeltWrapArc[]` | — |
+| `wrapByPulley` | `Record<string, BeltWrapArc>` | — |
+| `length` | `number` | — |
+
+**Methods:**
+
+- `toSketch()` — Convert the loop centerline into a thin visual sketch.
+- `toProfile()` — Convert the loop into a filled profile using the pitch path itself as the boundary.
+- `offsetBand()` — Build a belt band sketch by offsetting the route to inner and outer pulley radii.
 
 ### `NurbsCurve3D`
 
@@ -1437,6 +1831,7 @@ Metadata-bearing helical curve around the Z axis. Use `Helix.path(...)` for samp
 
 - `that()` — Custom predicate check.
 - `equal()` — Check that two numbers are approximately equal (within tolerance).
+- `connectorDistance()` — Check that two named connectors on an assembled shape or group are seated within tolerance of each other. Connector names support dotted child paths on groups: `"Child.connector"`. verify.connectorDistance("leg is seated", bench, "Rail.leg_0", "Leg0.head", 0, 0.01);
 - `notEqual()` — Check that two numbers are NOT equal (differ by more than tolerance).
 - `greaterThan()` — Check that actual > min.
 - `lessThan()` — Check that actual < max.
