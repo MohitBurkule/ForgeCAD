@@ -41,6 +41,8 @@ export type {
 export { Assembly, assembly, bomToCsv, ImportedAssembly, SolvedAssembly } from './assembly/assembly';
 export type { BomDef, BomOpts } from './bom';
 export { bom, getCollectedBom, resetBom } from './bom';
+export type { ComparisonRequest, ViewportLabel } from './annotations';
+export { compareWith, getCollectedComparisons, getCollectedViewportLabels, resetAnnotations, Viewport } from './annotations';
 export type { CutPlaneDef, CutPlaneExcludeInput, CutPlaneOptions } from './cutPlane';
 export { cutPlane, getCollectedCutPlanes, resetCutPlanes } from './cutPlane';
 export type { ExplodeViewDirection, ExplodeViewDirective, ExplodeViewOptions } from './assembly/explodeView';

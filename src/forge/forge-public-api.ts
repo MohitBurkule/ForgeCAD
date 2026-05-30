@@ -65,6 +65,7 @@ export type {
 
 // ── visual (C14) ────────────────────────────────────────────────────────────────
 /** @concept visual */ export { cutPlane } from './cutPlane';
+/** @concept visual */ export { compareWith, Viewport } from './annotations';
 
 // ── edge-feature (C6) ───────────────────────────────────────────────────────────
 /** @concept edge-feature */ export { chamferEdgeSegment, filletEdgeSegment } from './edge-features/edgeSegmentFeatures';

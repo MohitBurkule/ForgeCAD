@@ -11,6 +11,7 @@ import './holeCut';
 import { Assembly, assembly, bomToCsv, ImportedAssembly, SolvedAssembly } from './assembly/assembly';
 import { port } from './port';
 import { type BomDef, bom, getCollectedBom, resetBom } from './bom';
+import { compareWith, resetAnnotations, Viewport } from './annotations';
 import type { ShapeCompilePlan } from './compilePlan';
 import { appendShapeCompileTransform, createOwnedShapeCompilePlan, resetShapeQueryOwnerIds } from './compilePlan';
 import { type CutPlaneDef, cutPlane, getCollectedCutPlanes, resetCutPlanes } from './cutPlane';
@@ -511,6 +512,8 @@ function executeFile(
       param,
       boolParam,
       Param,
+      Viewport,
+      compareWith,
       sdf,
       Sculpt: sdf.Sculpt,
       Shape,
@@ -768,6 +771,7 @@ export function runScript(
   resetViewConfig();
   resetScene();
   resetVerifications();
+  resetAnnotations();
   _collectedLogs = [];
   const t0 = performance.now();
   const execOptions: RunnerExecutionOptions = {
