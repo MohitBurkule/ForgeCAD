@@ -424,6 +424,44 @@ export const verify = {
   },
 
   /**
+   * Check that the clearance gap between two shapes is inside an allowed range [minGap, maxGap].
+   * Use a narrow band like [-0.01, 0.05] for seated contact, or the intended band for a running fit.
+   */
+  clearanceBetween(label: string, a: ShapeLike, b: ShapeLike, minGap: number, maxGap: number, searchLength = 10.0): void {
+    const line = captureSourceLine();
+    try {
+      const gap = computeMinGap(a, b, searchLength);
+      const passed = gap >= minGap && gap <= maxGap;
+      push({
+        id: nextId(),
+        label,
+        status: passed ? 'pass' : 'fail',
+        message: passed
+          ? `Gap ${roundNum(gap, 3)} mm within [${roundNum(minGap, 3)}, ${roundNum(maxGap, 3)}] mm`
+          : `Gap ${roundNum(gap, 3)} mm outside allowed [${roundNum(minGap, 3)}, ${roundNum(maxGap, 3)}] mm`,
+        line: passed ? undefined : line,
+        expected: `[${roundNum(minGap, 3)}, ${roundNum(maxGap, 3)}] mm`,
+        actual: `${roundNum(gap, 3)} mm`,
+      });
+    } catch (e: unknown) {
+      push({ id: nextId(), label, status: 'fail', message: `Error: ${e instanceof Error ? e.message : String(e)}`, line });
+    }
+  },
+
+  /**
+   * Declare that two visible objects intentionally share volume (welded, overmolded, potted, cast-in, etc.).
+   * Records a passing annotation; the mechanical-integrity inspector honors it when both shapes are visible.
+   */
+  intentionalOverlap(label: string, _a: ShapeLike, _b: ShapeLike, reason: string): void {
+    push({
+      id: nextId(),
+      label,
+      status: 'pass',
+      message: `Intentional overlap declared: ${reason}`,
+    });
+  },
+
+  /**
    * Check that two face normals are parallel (within toleranceDeg degrees).
    */
   parallel(label: string, faceA: FaceRefLike, faceB: FaceRefLike, toleranceDeg = 1.0): void {
