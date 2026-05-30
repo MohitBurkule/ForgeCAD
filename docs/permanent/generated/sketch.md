@@ -32,7 +32,7 @@ Create a stroked polyline sketch from an array of 2D points.
 rect(width: number, height: number, center?: boolean): Sketch
 ```
 
-Create a 2D rectangle. When center is true, the origin is at the rectangle center; otherwise at the bottom-left corner.
+Create a 2D rectangle centered at the origin. Pass `center = false` to place the origin at the bottom-left corner.
 
 #### `circle2d()`
 
@@ -445,6 +445,8 @@ Convert radians to degrees
 - `diameter()` — diameter(circle: any, value: number): this
 - `hDistance()` — hDistance(a: any, b: any, value: number): this
 - `vDistance()` — vDistance(a: any, b: any, value: number): this
+- `offsetX()` — offsetX(lineA: any, lineB: any, value: number): this
+- `offsetY()` — offsetY(lineA: any, lineB: any, value: number): this
 - `pointLineDistance()` — pointLineDistance(point: any, line: any, value: number): this
 - `lineDistance()` — lineDistance(a: any, b: any, value: number): this
 - `absoluteAngle()` — absoluteAngle(line: any, value: number): this

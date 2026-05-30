@@ -1758,6 +1758,26 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `referencePoint()` — Resolve a named placement reference or built-in Anchor3D to a 3D point. Named refs take priority over built-in anchors.
 - `placeReference()` — Translate the group so the given reference lands on the target coordinate. ```javascript const placed = require('./bracket-assembly.forge.js').group .placeReference('mountCenter', [0, 0, 50]); ```
 
+### `RouteBuilder`
+
+**Methods:**
+
+- `up()` — Vertical line going +Y. Length optional (solver determines it).
+- `down()` — Vertical line going -Y. Length optional.
+- `right()` — Horizontal line going +X. Length optional.
+- `left()` — Horizontal line going -X. Length optional.
+- `lineAt()` — Line at an arbitrary angle (degrees from +X). Length optional.
+- `line()` — Line with solver-determined direction (tangent to previous arc / constraints).
+- `toward()` — Line toward a specific point. Length defaults to the distance to that point.
+- `arcLeft()` — Tangent arc turning left relative to travel direction.
+- `arcRight()` — Tangent arc turning right relative to travel direction.
+- `close()` — Close the route with an explicit straight line back to the start point.
+- `done()` — Close the route back to its start point and register it as a profile loop. No extra line segment is added; a coincident constraint joins the last point to the start, with tangency added for G1 smoothness at the junction.
+- `get start()` — PointId of the route's start point.
+- `get end()` — PointId of the current cursor (route's end).
+- `startOf()` — Start point of a segment created by this route.
+- `endOf()` — End point of a segment created by this route.
+
 ### `DriveWheelBuilder`
 
 **Methods:**

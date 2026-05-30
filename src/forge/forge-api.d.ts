@@ -1443,6 +1443,8 @@ interface ConstrainedSketchBuilder {
 	diameter(circle: any, value: number): this;
 	hDistance(a: any, b: any, value: number): this;
 	vDistance(a: any, b: any, value: number): this;
+	offsetX(lineA: any, lineB: any, value: number): this;
+	offsetY(lineA: any, lineB: any, value: number): this;
 	pointLineDistance(point: any, line: any, value: number): this;
 	lineDistance(a: any, b: any, value: number): this;
 	absoluteAngle(line: any, value: number): this;
@@ -1822,6 +1824,69 @@ interface ConstrainedSketchBuilder {
 	 * Returns `this` for chaining. Call `.solve()` after to get the Sketch.
 	 */
 	route(steps: RouteStep[]): this;
+	/** Directional (turtle-graphics) route builder starting at (x, y). */
+	route(x: number, y: number): RouteBuilder;
+	/** Directional route builder starting at an existing point. */
+	route(startPt: PointId): RouteBuilder;
+}
+declare class RouteBuilder {
+	private sk;
+	private _startPt;
+	private cursorPt;
+	private cursorX;
+	private cursorY;
+	/** Travel direction in radians from +X. null until the first segment. */
+	private direction;
+	private segments;
+	private lastLineId;
+	private lastArcId;
+	private finished;
+	constructor(sk: any, startPt: PointId, x: number, y: number);
+	/** Vertical line going +Y. Length optional (solver determines it). */
+	up(length?: number): LineId;
+	/** Vertical line going -Y. Length optional. */
+	down(length?: number): LineId;
+	/** Horizontal line going +X. Length optional. */
+	right(length?: number): LineId;
+	/** Horizontal line going -X. Length optional. */
+	left(length?: number): LineId;
+	/** Line at an arbitrary angle (degrees from +X). Length optional. */
+	lineAt(angleDeg: number, length?: number): LineId;
+	/** Line with solver-determined direction (tangent to previous arc / constraints). */
+	line(length?: number): LineId;
+	/** Line toward a specific point. Length defaults to the distance to that point. */
+	toward(x: number, y: number): LineId;
+	/** Tangent arc turning left relative to travel direction. */
+	arcLeft(radius?: number, sweepDegOrOpts?: number | {
+		minSweep: number;
+	}): ArcId;
+	/** Tangent arc turning right relative to travel direction. */
+	arcRight(radius?: number, sweepDegOrOpts?: number | {
+		minSweep: number;
+	}): ArcId;
+	/** Close the route with an explicit straight line back to the start point. */
+	close(): void;
+	/**
+	 * Close the route back to its start point and register it as a profile loop.
+	 * No extra line segment is added; a coincident constraint joins the last
+	 * point to the start, with tangency added for G1 smoothness at the junction.
+	 */
+	done(): void;
+	/** PointId of the route's start point. */
+	get start(): PointId;
+	/** PointId of the current cursor (route's end). */
+	get end(): PointId;
+	/** Start point of a segment created by this route. */
+	startOf(segId: LineId | ArcId): PointId;
+	/** End point of a segment created by this route. */
+	endOf(segId: LineId | ArcId): PointId;
+	private _addLine;
+	private _addArc;
+	private _ensureNotFinished;
+	private _registerLoop;
+	private _normalizeAngle;
+	private _isVertical;
+	private _isHorizontal;
 }
 interface ConstrainedSketchOptions {
 	/** When true, adding a constraint that cannot be satisfied throws instead of silently discarding it. */
@@ -7401,7 +7466,7 @@ declare function mirrorCopy(shape: ShapeArg$3, normal: [
 	number,
 	number
 ]): Shape;
-/** Create a 2D rectangle. When center is true, the origin is at the rectangle center; otherwise at the bottom-left corner. */
+/** Create a 2D rectangle centered at the origin. Pass `center = false` to place the origin at the bottom-left corner. */
 declare function rect(width: number, height: number, center?: boolean): Sketch;
 /** Create a 2D circle centered at the origin. Use segments for lower-poly approximations. */
 declare function circle2d(radius: number, segments?: number): Sketch;
