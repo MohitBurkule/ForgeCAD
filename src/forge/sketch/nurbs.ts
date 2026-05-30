@@ -40,7 +40,7 @@ function requireFiniteVec3(p: unknown, where: string): Vec3 {
 }
 
 /** Build a uniform clamped knot vector for n control points of given degree. */
-function uniformClampedKnots(n: number, degree: number): number[] {
+export function uniformClampedKnots(n: number, degree: number): number[] {
   const knots: number[] = [];
   const interior = n - degree - 1;
   for (let i = 0; i <= degree; i++) knots.push(0);
@@ -174,7 +174,7 @@ export function nurbs3d(points: Vec3[], options: NurbsCurve3DOptions = {}): Nurb
 /**
  * Evaluate a NURBS surface at (u, v) in [0, 1]^2.
  */
-function evalNurbsSurface(
+export function evalNurbsSurface(
   grid: Vec3[][],
   weights: number[][],
   degreeU: number,
@@ -297,7 +297,7 @@ function norm(v: Vec3): Vec3 {
  * shells joined at the boundary, then meshing through the convex-hull-free polyhedron
  * builder. We reuse the kernel's polyhedron-from-triangles path via Shape.fromTriangles.
  */
-function buildThickenedSurface(pts: Vec3[][], thickness: number): Shape {
+export function buildThickenedSurface(pts: Vec3[][], thickness: number): Shape {
   const rows = pts.length;
   const cols = pts[0].length;
   const half = thickness / 2;
