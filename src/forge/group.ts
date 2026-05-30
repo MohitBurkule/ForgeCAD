@@ -177,7 +177,9 @@ function normalizeGroupInputs(items: GroupInput[]): {
       return;
     }
     children.push(item);
-    childNames.push(undefined);
+    // Bare shapes tagged via Shape.as(name) surface their name as the child name.
+    const taggedName = (item as { shapeName?: unknown })?.shapeName;
+    childNames.push(typeof taggedName === 'string' ? normalizeChildName(taggedName) : undefined);
   });
 
   return { children, childNames };

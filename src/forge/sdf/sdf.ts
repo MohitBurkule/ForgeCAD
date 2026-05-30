@@ -1392,13 +1392,18 @@ function splitShapesAndOptions(label: string, ...args: SculptBlendArg[]): { shap
   return { shapes, options };
 }
 
-export type SculptPoint = Vec3 | [number, number, number, number];
+/** A control point for Sculpt.tube()/curve(): `[x,y,z]`, `[x,y,z,radius]`, or `{ point: [x,y,z], radius? }`. */
+export type SculptPoint = Vec3 | [number, number, number, number] | { point: Vec3; radius?: number };
 export type SculptPointList = SculptPoint[];
 export interface SculptTubeOptions {
   /** Default thread radius in mm when a point omits its own. Default: 3 */
   radius?: number;
   /** Smooth-union blend radius between segments. Default: derived from radius. */
   blend?: number;
+  /** Smoothing samples per segment (accepted for path-authoring parity; advisory). */
+  segments?: number;
+  /** Catmull-Rom tension (accepted for path-authoring parity; advisory). */
+  tension?: number;
 }
 
 /**
@@ -1413,9 +1418,22 @@ function sculptTube(points: SculptPointList, options?: SculptTubeOptions): SdfSh
   }
   const defaultRadius = requirePositiveFinite(options?.radius ?? 3, 'Sculpt.tube() radius');
   const pts = points.map((p, i) => {
-    if (!Array.isArray(p) || p.length < 3) throw new Error(`Sculpt.tube() point[${i}] must be [x, y, z] or [x, y, z, radius].`);
-    const r = p.length >= 4 ? requirePositiveFinite(p[3] as number, `Sculpt.tube() point[${i}] radius`) : defaultRadius;
-    return { x: requireFinite(p[0], `Sculpt.tube() point[${i}].x`), y: requireFinite(p[1], `Sculpt.tube() point[${i}].y`), z: requireFinite(p[2], `Sculpt.tube() point[${i}].z`), r };
+    // Object form: { point: [x, y, z], radius?: number }
+    if (p && !Array.isArray(p) && typeof p === 'object' && Array.isArray((p as { point?: unknown }).point)) {
+      const obj = p as { point: number[]; radius?: number };
+      const r = obj.radius !== undefined ? requirePositiveFinite(obj.radius, `Sculpt.tube() point[${i}] radius`) : defaultRadius;
+      return {
+        x: requireFinite(obj.point[0], `Sculpt.tube() point[${i}].x`),
+        y: requireFinite(obj.point[1], `Sculpt.tube() point[${i}].y`),
+        z: requireFinite(obj.point[2], `Sculpt.tube() point[${i}].z`),
+        r,
+      };
+    }
+    const arr = p as number[];
+    if (!Array.isArray(arr) || arr.length < 3)
+      throw new Error(`Sculpt.tube() point[${i}] must be [x, y, z], [x, y, z, radius], or { point: [x, y, z], radius }.`);
+    const r = arr.length >= 4 ? requirePositiveFinite(arr[3], `Sculpt.tube() point[${i}] radius`) : defaultRadius;
+    return { x: requireFinite(arr[0], `Sculpt.tube() point[${i}].x`), y: requireFinite(arr[1], `Sculpt.tube() point[${i}].y`), z: requireFinite(arr[2], `Sculpt.tube() point[${i}].z`), r };
   });
   const blendRadius = options?.blend !== undefined ? requirePositiveFinite(options.blend, 'Sculpt.tube() blend') : defaultRadius * 0.5;
 

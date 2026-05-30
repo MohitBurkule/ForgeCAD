@@ -159,6 +159,7 @@ import {
   nurbs3d,
   nurbsSurface,
 } from './sketch';
+import { Carrier, Counterbore, Helix, Loft, Product, Ribs, Slot, SurfaceBody, SurfaceMembers } from './surfacing';
 import type { SolverWasmRunDebugSnapshot } from './sketch/constraints/solver-wasm';
 import { composeChain, Transform } from './transform';
 import { getCollectedVerifications, resetVerifications, spec, type VerificationResult, verify } from './verification';
@@ -516,6 +517,15 @@ function executeFile(
       compareWith,
       sdf,
       Sculpt: sdf.Sculpt,
+      Loft,
+      Product,
+      Carrier,
+      SurfaceBody,
+      SurfaceMembers,
+      Slot,
+      Counterbore,
+      Ribs,
+      Helix,
       Shape,
       Sketch,
       lib: partLibrary,

@@ -137,6 +137,8 @@ export type {
 export { getCollectedRobotExport, resetRobotExport, robotExport } from './export/robotExport';
 export type { LogEntry, MeshImportOptions, RunResult, RunScriptOptions, SceneObject } from './runner';
 export { runScript } from './runner';
+export { Carrier, Counterbore, Helix, Loft, Product, ProductMaterials, ProductSkin, Ribs, Slot, SurfaceBody, SurfaceBodyBuilder, SurfaceMembers, SurfacePath } from './surfacing';
+export type { ProductMaterial } from './surfacing';
 export type {
   SceneBackgroundGradient,
   SceneBloomConfig,

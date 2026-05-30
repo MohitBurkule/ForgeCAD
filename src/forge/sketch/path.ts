@@ -963,6 +963,11 @@ export class PathBuilder {
     return pts;
   }
 
+  /** Return the open path as a sampled 2D polyline of `[x, y]` points. */
+  toPolyline(): [number, number][] {
+    return this.tessellate();
+  }
+
   // ── Output ────────────────────────────────────────────────────────────────
 
   /**

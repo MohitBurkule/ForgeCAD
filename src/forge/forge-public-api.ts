@@ -314,3 +314,44 @@ export declare function highlight(
 export declare function highlight(shape: _Shape | TrackedShape, opts?: _HighlightOptions): void;
 export declare function highlight(face: _FaceRef, opts?: _HighlightOptions): void;
 export declare function highlight(edge: _EdgeRef, opts?: _HighlightOptions): void;
+
+// ── Surfacing facades: Loft / Product / Carrier / SurfaceBody ──────────────────
+/**
+ * `Loft` — guided-loft helpers. Build stations from 2D profiles, optionally constrain
+ * the loft to side/center guide rails, then loft through them into a Shape.
+ * @concept surface
+ */
+/**
+ * `Product` — high-level product-skin authoring. `Product.skin(name).axis(...).stations([...]).build()`
+ * lofts named cross-section stations (super-ellipse, oval, rounded-rect, circle) into a shell, plus
+ * ribbons, spouts, handles, panels, materials, and surface refs for attaching conformal details.
+ * @concept surface
+ */
+/**
+ * `Carrier` — analytic carrier surfaces (`cylinder`, `plane`, `productSkin`) that provide
+ * angle/z and u/v surface coordinates for placing surface members.
+ * @concept surface
+ */
+/**
+ * `SurfaceBody(name)` — surface-member body builder for straps, inlays, guards, braces, and
+ * cuffs that live on a carrier surface. Add `.member(name).band()/.plate()`, give them a `.path()`
+ * or `.at()` anchor and a `.section({...})`, then `.build()` into a Shape/ShapeGroup.
+ * @concept surface
+ */
+/** `Slot.rounded({length,width})`, `Counterbore.cylindrical({...})`, `Ribs.repeated({count,height})` — member-local features. @concept surface */
+/** `Helix.path({radius,pitch,turns})` / `Helix.coil({...,wireRadius})` — helical centerlines and swept coils. @concept surface */
+export {
+  Carrier,
+  Counterbore,
+  Helix,
+  Loft,
+  Product,
+  ProductMaterials,
+  ProductSkin,
+  Ribs,
+  Slot,
+  SurfaceBody,
+  SurfaceMembers,
+  SurfacePath,
+} from './surfacing';
+export type { ProductMaterial } from './surfacing';
