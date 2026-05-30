@@ -16,6 +16,8 @@ declare module './builder' {
     diameter(circle: any, value: number): this;
     hDistance(a: any, b: any, value: number): this;
     vDistance(a: any, b: any, value: number): this;
+    offsetX(lineA: any, lineB: any, value: number): this;
+    offsetY(lineA: any, lineB: any, value: number): this;
     pointLineDistance(point: any, line: any, value: number): this;
     lineDistance(a: any, b: any, value: number): this;
     absoluteAngle(line: any, value: number): this;
@@ -78,6 +80,36 @@ proto.hDistance = function (this: any, a: any, b: any, value: number): any {
 proto.vDistance = function (this: any, a: any, b: any, value: number): any {
   this.requireFinite(value, 'vDistance');
   return this.constrain({ type: 'vDistance', a: this.resolvePointId(a), b: this.resolvePointId(b), value } as Omit<SketchConstraint, 'id'>);
+};
+
+/**
+ * Constrain the horizontal (X-axis) offset between two lines, measured from
+ * each line's start point: b.startPt.x − a.startPt.x = value.
+ */
+proto.offsetX = function (this: any, lineA: any, lineB: any, value: number): any {
+  this.requireFinite(value, 'offsetX');
+  const a = this.resolveLineId(lineA);
+  const b = this.resolveLineId(lineB);
+  const lineAData = this.lines.find((l: any) => l.id === a);
+  const lineBData = this.lines.find((l: any) => l.id === b);
+  if (!lineAData) throw new Error(`offsetX(): line "${a}" not found`);
+  if (!lineBData) throw new Error(`offsetX(): line "${b}" not found`);
+  return this.hDistance(lineAData.a, lineBData.a, value);
+};
+
+/**
+ * Constrain the vertical (Y-axis) offset between two lines, measured from
+ * each line's start point: b.startPt.y − a.startPt.y = value.
+ */
+proto.offsetY = function (this: any, lineA: any, lineB: any, value: number): any {
+  this.requireFinite(value, 'offsetY');
+  const a = this.resolveLineId(lineA);
+  const b = this.resolveLineId(lineB);
+  const lineAData = this.lines.find((l: any) => l.id === a);
+  const lineBData = this.lines.find((l: any) => l.id === b);
+  if (!lineAData) throw new Error(`offsetY(): line "${a}" not found`);
+  if (!lineBData) throw new Error(`offsetY(): line "${b}" not found`);
+  return this.vDistance(lineAData.a, lineBData.a, value);
 };
 
 /**
@@ -159,7 +191,8 @@ proto.arcTangentArc = function (this: any, arcA: any, arcB: any, aAtStart?: bool
     if (matches.length === 0) {
       // Fall back to closest pair by coordinate distance
       const ptDist = (p1: any, p2: any) => {
-        const a1 = this.getPoint(p1), a2 = this.getPoint(p2);
+        const a1 = this.getPoint(p1),
+          a2 = this.getPoint(p2);
         if (!a1 || !a2) return Infinity;
         return Math.hypot(a1.x - a2.x, a1.y - a2.y);
       };
