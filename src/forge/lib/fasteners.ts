@@ -10,6 +10,23 @@ import { profile2020BSlot6Profile, profile2020BSlot6 } from './profiles-2020';
 import { explode } from './explode';
 import { pipeRoute, elbow } from './pipe-routing';
 import { spurGear, bevelGear, faceGear, sideGear, ringGear, rackGear, gearPair, bevelGearPair, faceGearPair, sideGearPair } from './gears';
+import {
+  boltedServiceCover,
+  snapLatchCoverAssembly,
+  capturedCartridgeGuideAssembly,
+  capturedLinearSlide,
+  clevisPinJointAssembly,
+  pinnedLeverAssembly,
+  knuckledHingeAssembly,
+  livingHingeCoverAssembly,
+  retainedShaftAssembly,
+  seatedBearingAssembly,
+  cableGlandAnchorAssembly,
+  hoseBarbPortAssembly,
+  pcbTerminalBlockAssembly,
+  thumbScrewClampAssembly,
+  datumEnclosureAssembly,
+} from './assemblies';
 
 // ---------------------------------------------------------------------------
 // Thread
@@ -334,4 +351,19 @@ export const partLibrary = {
   bevelGearPair,
   faceGearPair,
   sideGearPair,
+  boltedServiceCover,
+  snapLatchCoverAssembly,
+  capturedCartridgeGuideAssembly,
+  capturedLinearSlide,
+  clevisPinJointAssembly,
+  pinnedLeverAssembly,
+  knuckledHingeAssembly,
+  livingHingeCoverAssembly,
+  retainedShaftAssembly,
+  seatedBearingAssembly,
+  cableGlandAnchorAssembly,
+  hoseBarbPortAssembly,
+  pcbTerminalBlockAssembly,
+  thumbScrewClampAssembly,
+  datumEnclosureAssembly,
 };
