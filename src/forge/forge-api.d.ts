@@ -2536,6 +2536,23 @@ declare class TrackedShape {
 	numBodies(): number;
 	/** Triangle mesh (positions + indices). */
 	getMesh(): ShapeRuntimeMesh;
+	/** Translate using polar coordinates (radius + angle in degrees). Topology is preserved through translation. */
+	translatePolar(radius: number, angleDeg: number, z?: number): TrackedShape;
+	/** True when this shape contains no geometry. */
+	isEmpty(): boolean;
+	/** Split this shape by a cutter into [inside, outside]. */
+	split(cutter: Shape | {
+		toShape(): Shape;
+	}): [
+		Shape,
+		Shape
+	];
+	/** Slice the shape with a horizontal plane at the given Z offset, returning the cross-section. */
+	slice(offset?: number): any;
+	/** Project the shape onto the XY plane, returning a 2D sketch. */
+	project(): any;
+	/** Inspect the transformation history of a tracked face. */
+	faceHistory(name: string): FaceTransformationHistory;
 }
 type PlaneSpec = {
 	origin: Vec3;

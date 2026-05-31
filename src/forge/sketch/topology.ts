@@ -573,6 +573,37 @@ export class TrackedShape {
   getMesh() {
     return this.shape.getMesh();
   }
+
+  /** Translate using polar coordinates (radius + angle in degrees). Topology is preserved through translation. */
+  translatePolar(radius: number, angleDeg: number, z = 0): TrackedShape {
+    const rad = angleDeg * (Math.PI / 180);
+    return this.translate(radius * Math.cos(rad), radius * Math.sin(rad), z);
+  }
+
+  /** True when this shape contains no geometry. */
+  isEmpty(): boolean {
+    return this.shape.isEmpty();
+  }
+
+  /** Split this shape by a cutter into [inside, outside]. */
+  split(cutter: Shape | { toShape(): Shape }): [Shape, Shape] {
+    return this.shape.split(cutter);
+  }
+
+  /** Slice the shape with a horizontal plane at the given Z offset, returning the cross-section. */
+  slice(offset = 0) {
+    return this.shape.slice(offset);
+  }
+
+  /** Project the shape onto the XY plane, returning a 2D sketch. */
+  project() {
+    return this.shape.project();
+  }
+
+  /** Inspect the transformation history of a tracked face. */
+  faceHistory(name: string) {
+    return this.shape.faceHistory(name);
+  }
 }
 
 function offsetTopology(topo: Topology, dx: number, dy: number, dz: number): Topology {
