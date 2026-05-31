@@ -1748,7 +1748,11 @@ A Shape that knows its topology — which faces and edges it has by name. Create
 - `trimByPlane()` — Keep the positive side of the plane and discard the opposite side. Returns plain Shape.
 - `shell()` — Shelling returns a plain Shape because tracked topology is not preserved.
 - `boundingBox()` — boundingBox(): ShapeRuntimeBounds
-- `get volume()` — get volume(): number
+- `volume()` — Solid volume in mm³.
+- `surfaceArea()` — Total surface area in mm².
+- `numTri()` — Number of triangles in the meshed representation.
+- `numBodies()` — Number of disconnected physical bodies.
+- `getMesh()` — Triangle mesh (positions + indices).
 - `pocket()` — Cut a pocket (cavity) into this solid through the named face. box(100, 100, 20).pocket('top', 8) box(100, 100, 20).pocket('top', 8, { inset: 5 }) box(100, 100, 20).pocket('top', 8, { scale: 0.8 })
 - `boss()` — Add a boss (protrusion) from the named face. box(100, 100, 20).boss('top', 5) box(100, 100, 20).boss('top', 10, { scale: 0.6 })
 - `hole()` — Drill a hole into this solid at a face. box(50, 50, 20).hole('top', { diameter: 8, depth: 10 }) box(50, 50, 20).hole('top', { diameter: 6, counterbore: { diameter: 12, depth: 3 } })

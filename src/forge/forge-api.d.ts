@@ -2526,7 +2526,16 @@ declare class TrackedShape {
 		openFaces?: Array<"top" | "bottom">;
 	}): Shape;
 	boundingBox(): ShapeRuntimeBounds;
-	get volume(): number;
+	/** Solid volume in mm³. */
+	volume(): number;
+	/** Total surface area in mm². */
+	surfaceArea(): number;
+	/** Number of triangles in the meshed representation. */
+	numTri(): number;
+	/** Number of disconnected physical bodies. */
+	numBodies(): number;
+	/** Triangle mesh (positions + indices). */
+	getMesh(): ShapeRuntimeMesh;
 }
 type PlaneSpec = {
 	origin: Vec3;
@@ -9190,7 +9199,10 @@ declare namespace sdf {
   }
   export interface TpmsOptions {
   	cellSize: number;
-  	thickness: number;
+  	/** Wall thickness of the lattice surface (mm). 0.9.13 spelling. */
+  	wallThickness?: number;
+  	/** @deprecated Alias for wallThickness. */
+  	thickness?: number;
   }
   export interface VoronoiOptions {
   	/** Size of each Voronoi cell in world units. Default: 10 */
