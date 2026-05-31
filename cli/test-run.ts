@@ -277,6 +277,18 @@ export async function runScriptCli(argv: string[] = process.argv.slice(2)): Prom
       }
     }
 
+    // Surface the script's own console.log/console.info output (excluding internal [import] traces),
+    // matching `forgecad run` behavior in the published package.
+    const scriptOutput = (result.logs || []).filter(
+      (log: any) => (log.level === 'log' || log.level === 'info') && !(typeof log.args?.[0] === 'string' && log.args[0].startsWith('[import]')),
+    );
+    if (scriptOutput.length > 0) {
+      console.log(`\n✓ Script output:`);
+      for (const log of scriptOutput) {
+        console.log(`  ${log.args.join(' ')}`);
+      }
+    }
+
     const diagnostics = (result.logs || []).filter((log: any) => log.level === 'warn' || log.level === 'error');
     if (diagnostics.length > 0) {
       console.log(`\n⚠ Script diagnostics:`);
