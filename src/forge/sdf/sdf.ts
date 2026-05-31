@@ -521,27 +521,50 @@ export function blend(a: SdfShape, b: SdfShape, fn: (x: number, y: number, z: nu
 
 export interface TpmsOptions {
   cellSize: number;
-  thickness: number;
+  /** Wall thickness of the lattice surface (mm). 0.9.13 spelling. */
+  wallThickness?: number;
+  /** @deprecated Alias for wallThickness. */
+  thickness?: number;
+}
+
+/** Resolve the lattice wall thickness (mm), accepting both `wallThickness` (preferred) and `thickness`. */
+function tpmsThickness(options: TpmsOptions): number {
+  const t = options.wallThickness ?? options.thickness;
+  if (t == null || !Number.isFinite(t) || t <= 0) {
+    throw new Error('TPMS lattice requires a positive finite wallThickness, e.g. gyroid({ cellSize: 10, wallThickness: 1.5 }).');
+  }
+  return t;
+}
+
+/**
+ * Convert a physical wall thickness (mm) into the dimensionless field isovalue the TPMS
+ * evaluators subtract (`|F| < iso`). Near the F=0 surface, |F| ≈ |∇F|·distance, and |∇F|
+ * scales with the cell frequency `2π/cellSize` times a surface-specific gradient factor.
+ * So iso ≈ (t/2)·(2π/cellSize)·gradFactor. Factors calibrated against forgecad@0.9.13.
+ */
+function tpmsIsovalue(options: TpmsOptions, gradFactor: number): number {
+  const t = tpmsThickness(options);
+  return (t / 2) * ((Math.PI * 2) / options.cellSize) * gradFactor;
 }
 
 /** Gyroid TPMS lattice — the most common lattice for additive manufacturing. */
 export function gyroid(options: TpmsOptions): SdfShape {
-  return new SdfShape({ kind: 'sdf:gyroid', cellSize: options.cellSize, thickness: options.thickness });
+  return new SdfShape({ kind: 'sdf:gyroid', cellSize: options.cellSize, thickness: tpmsIsovalue(options, 1.36) });
 }
 
 /** Schwarz-P TPMS lattice — isotropic pore structure. */
 export function schwarzP(options: TpmsOptions): SdfShape {
-  return new SdfShape({ kind: 'sdf:schwarzP', cellSize: options.cellSize, thickness: options.thickness });
+  return new SdfShape({ kind: 'sdf:schwarzP', cellSize: options.cellSize, thickness: tpmsIsovalue(options, 1.22) });
 }
 
 /** Diamond TPMS lattice — stiffest TPMS structure. */
 export function diamond(options: TpmsOptions): SdfShape {
-  return new SdfShape({ kind: 'sdf:diamond', cellSize: options.cellSize, thickness: options.thickness });
+  return new SdfShape({ kind: 'sdf:diamond', cellSize: options.cellSize, thickness: tpmsIsovalue(options, 1.36) });
 }
 
 /** Lidinoid TPMS lattice — visually distinct from gyroid, popular in research and art. */
 export function lidinoid(options: TpmsOptions): SdfShape {
-  return new SdfShape({ kind: 'sdf:lidinoid', cellSize: options.cellSize, thickness: options.thickness });
+  return new SdfShape({ kind: 'sdf:lidinoid', cellSize: options.cellSize, thickness: tpmsIsovalue(options, 1.36) });
 }
 
 // ─── Noise / pattern factories ──────────────────────────────────────────────
