@@ -549,8 +549,29 @@ export class TrackedShape {
     return this.shape.boundingBox();
   }
 
-  get volume(): number {
+  /** Solid volume in mm³. */
+  volume(): number {
     return this.shape.volume();
+  }
+
+  /** Total surface area in mm². */
+  surfaceArea(): number {
+    return this.shape.surfaceArea();
+  }
+
+  /** Number of triangles in the meshed representation. */
+  numTri(): number {
+    return this.shape.numTri();
+  }
+
+  /** Number of disconnected physical bodies. */
+  numBodies(): number {
+    return this.shape.numBodies();
+  }
+
+  /** Triangle mesh (positions + indices). */
+  getMesh() {
+    return this.shape.getMesh();
   }
 }
 
