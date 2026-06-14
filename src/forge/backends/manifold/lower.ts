@@ -377,8 +377,12 @@ function lowerChamferEdgesCompilePlan(plan: Extract<ShapeCompilePlan, { kind: 'c
 
 export function lowerShapeCompilePlanToManifold(plan: ShapeCompilePlan, wasm: ManifoldToplevel): Manifold {
   switch (plan.kind) {
-    case 'box':
-      return wasm.Manifold.cube([plan.x, plan.y, plan.z], plan.center);
+    case 'box': {
+      // Box convention matches cylinder/sphere: always centered in X/Y with the
+      // base on Z=0. When center=true it is additionally centered in Z.
+      const cube = wasm.Manifold.cube([plan.x, plan.y, plan.z], plan.center);
+      return plan.center ? cube : cube.translate([-plan.x / 2, -plan.y / 2, 0]);
+    }
     case 'cylinder':
       return wasm.Manifold.cylinder(plan.height, plan.radius, plan.radiusTop ?? -1, plan.segments ?? 0, plan.center);
     case 'sphere':

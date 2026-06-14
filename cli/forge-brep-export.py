@@ -445,7 +445,9 @@ def find_resolved_edge(shape: "cq.Shape", selector: Dict[str, Any]) -> "cq.Edge"
 def build_shape(plan: Dict[str, Any]) -> "cq.Shape":
     kind = plan["kind"]
     if kind == "box":
-        centered = (plan["center"], plan["center"], plan["center"])
+        # Box is always centered in X/Y (matching cylinder/sphere); base on Z=0.
+        # center=true additionally centers in Z.
+        centered = (True, True, plan["center"])
         return cq.Workplane("XY").box(plan["x"], plan["y"], plan["z"], centered=centered).val()
     if kind == "cylinder":
         radius_top = plan.get("radiusTop")

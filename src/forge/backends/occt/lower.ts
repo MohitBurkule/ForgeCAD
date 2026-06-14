@@ -823,15 +823,15 @@ function _lowerShapeCompilePlanToOCCTInner(plan: ShapeCompilePlan, oc?: OCCTModu
 
   let _result: any;
   switch (plan.kind) {
-    case 'box':
-      if (plan.center) {
-        const box = new oc.BRepPrimAPI_MakeBox_2(plan.x, plan.y, plan.z);
-        const trsf = new oc.gp_Trsf_1();
-        trsf.SetTranslation_1(new oc.gp_Vec_4(-plan.x / 2, -plan.y / 2, -plan.z / 2));
-        const transformed = new oc.BRepBuilderAPI_Transform_2(box.Shape(), trsf, true);
-        return transformed.Shape();
-      }
-      return new oc.BRepPrimAPI_MakeBox_2(plan.x, plan.y, plan.z).Shape();
+    case 'box': {
+      // Box is always centered in X/Y (matching cylinder/sphere); base on Z=0.
+      // center=true additionally centers in Z.
+      const box = new oc.BRepPrimAPI_MakeBox_2(plan.x, plan.y, plan.z);
+      const trsf = new oc.gp_Trsf_1();
+      trsf.SetTranslation_1(new oc.gp_Vec_4(-plan.x / 2, -plan.y / 2, plan.center ? -plan.z / 2 : 0));
+      const transformed = new oc.BRepBuilderAPI_Transform_2(box.Shape(), trsf, true);
+      return transformed.Shape();
+    }
 
     case 'cylinder': {
       const radiusTop = plan.radiusTop != null && plan.radiusTop >= 0 ? plan.radiusTop : plan.radius;

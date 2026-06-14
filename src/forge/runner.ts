@@ -428,9 +428,9 @@ function executeFile(
     // Tracked wrappers for primitives — user scripts get TrackedShape with named faces/edges
     const trackedBox = (x: number, y: number, z: number, center = false): TrackedShape => {
       const shape = box(x, y, z, center);
-      const ox = center ? -x / 2 : 0;
-      const oy = center ? -y / 2 : 0;
-      const r = Rectangle2D.fromDimensions(ox, oy, x, y);
+      // Box is always centered in X/Y (matching cylinder/sphere); base on Z=0.
+      // center=true additionally centers in Z.
+      const r = Rectangle2D.fromDimensions(-x / 2, -y / 2, x, y);
       const topo = buildRectExtrusionTopology(r, z, true, center ? -z / 2 : 0);
       return new TrackedShape(shape, topo, 0, true);
     };
