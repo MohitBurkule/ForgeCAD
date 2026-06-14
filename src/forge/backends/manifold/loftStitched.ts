@@ -1,5 +1,5 @@
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
-import { resamplePolygon } from '../../sketch/polygonSampling';
+import { resamplePolygon, resamplePolygonByAngle } from '../../sketch/polygonSampling';
 
 type Vec2 = [number, number];
 type Vec3 = [number, number, number];
@@ -68,8 +68,15 @@ function stitchSingleLoopLoft(loops: Vec2[][], heights: number[], wasm: Manifold
   // Use a reasonable minimum for curves, but respect the input if high.
   const N = Math.max(maxPoints, 24);
 
+  // Angular resampling (rays from centroid) gives consistent point
+  // correspondence between dissimilar convex sections (circle vs square), so
+  // the ruled side surface does not twist or round off corners. It only works
+  // when every section is convex; otherwise fall back to arc-length resampling.
+  const angularSamples = normalizedLoops.map((loop) => resamplePolygonByAngle(loop, N));
+  const useAngularSamples = angularSamples.every((samples) => samples != null);
+
   const resampled: Vec3[][] = normalizedLoops.map((loop, i) => {
-    const pts2d = resamplePolygon(loop, N);
+    const pts2d = useAngularSamples ? (angularSamples[i] as Vec2[]) : resamplePolygon(loop, N);
     const z = heights[i];
     return pts2d.map(([x, y]) => [x, y, z] as Vec3);
   });
