@@ -451,12 +451,13 @@ export function sweep(profile: Sketch, path: Curve3D | Vec3[], options: SweepOpt
     maxZ = Math.max(maxZ, p[2]);
   }
 
-  let pathLen = 0;
-  for (let i = 1; i < pathPts.length; i++) {
-    pathLen += vec3Len(vec3Sub(pathPts[i], pathPts[i - 1]));
-  }
-  const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, pathLen, 1);
-  const requestedEdgeLength = options.edgeLength ?? Math.max(0.3, span / 110);
+  // The marching grid must resolve the smallest feature — the cross-section —
+  // so edge length is driven by the geometric bounding-box extent and capped at
+  // half the profile radius. Using the path arc length here would let a long,
+  // tightly-curved path (e.g. a helix) produce a grid far coarser than the tube,
+  // collapsing the swept solid. Path sample count is handled separately.
+  const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 1);
+  const requestedEdgeLength = options.edgeLength ?? Math.min(Math.max(0.3, span / 110), pr > 0 ? pr / 2 : Infinity);
   const edgeLength = scaleLevelSetEdgeLength(requestedEdgeLength);
   const requestedPad = options.boundsPadding ?? Math.max(pr + edgeLength * 2, span * 0.04, 2);
   const pad = scaleLevelSetBoundsPadding(requestedPad);
@@ -532,12 +533,11 @@ export function variableSweep(spine: Curve3D | Vec3[], sections: VariableSweepSe
     maxZ = Math.max(maxZ, p[2]);
   }
 
-  let pathLen = 0;
-  for (let i = 1; i < pathPts.length; i++) {
-    pathLen += vec3Len(vec3Sub(pathPts[i], pathPts[i - 1]));
-  }
-  const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, pathLen, 1);
-  const requestedEdgeLength = options.edgeLength ?? Math.max(0.3, span / 110);
+  // Edge length is driven by the geometric extent and capped at half the
+  // largest profile radius so the grid always resolves the cross-section — the
+  // path arc length must not coarsen the grid on long, tightly-curved spines.
+  const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 1);
+  const requestedEdgeLength = options.edgeLength ?? Math.min(Math.max(0.3, span / 110), maxPr > 0 ? maxPr / 2 : Infinity);
   const edgeLength = scaleLevelSetEdgeLength(requestedEdgeLength);
   const requestedPad = options.boundsPadding ?? Math.max(maxPr + edgeLength * 2, span * 0.04, 2);
   const pad = scaleLevelSetBoundsPadding(requestedPad);
