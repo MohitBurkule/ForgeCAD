@@ -476,8 +476,9 @@ function deepestTrackedVerticalEdgeSource(
 }
 
 function boxEdgeSelection(plan: Extract<ShapeCompilePlan, { kind: 'box' }>, edgeName: string): EdgeFeatureSelectionResult {
-  const x0 = plan.center ? -plan.x / 2 : 0;
-  const y0 = plan.center ? -plan.y / 2 : 0;
+  // Box is always centered in X/Y (matching cylinder/sphere); center adds Z too.
+  const x0 = -plan.x / 2;
+  const y0 = -plan.y / 2;
   const z0 = plan.center ? -plan.z / 2 : 0;
   const x1 = x0 + plan.x;
   const y1 = y0 + plan.y;

@@ -426,8 +426,9 @@ function createTrackedFaceQuery(name: string, owner: ShapeQueryOwner | null): Fa
 
 function buildBoxFaceTable(plan: Extract<ShapeCompilePlan, { kind: 'box' }>, owner: ShapeQueryOwner | null): FaceTable {
   const table = emptyFaceTable();
-  const minX = plan.center ? -plan.x / 2 : 0;
-  const minY = plan.center ? -plan.y / 2 : 0;
+  // Box is always centered in X/Y (matching cylinder/sphere); center adds Z too.
+  const minX = -plan.x / 2;
+  const minY = -plan.y / 2;
   const maxX = minX + plan.x;
   const maxY = minY + plan.y;
   const zBot = plan.center ? -plan.z / 2 : 0;
