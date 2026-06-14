@@ -28,6 +28,7 @@ import {
   applyFilletSelectionToManifold,
 } from './edgeFeatureRuntime';
 import { loftStitched } from './loftStitched';
+import { lowerDraft, lowerOffsetSolid } from './offsetDraftLower';
 import { wrapManifoldShapeBackend } from './shapeBackend';
 
 function applyProfileCompileTransform(crossSection: CrossSection, step: ProfileCompileTransformStep): CrossSection {
@@ -437,9 +438,9 @@ export function lowerShapeCompilePlanToManifold(plan: ShapeCompilePlan, wasm: Ma
     case 'chamferEdges':
       return lowerChamferEdgesCompilePlan(plan, wasm);
     case 'draft':
-      throw new Error("Draft angle requires the OCCT backend. Add setActiveBackend('occt') at the top of your script.");
+      return lowerDraft(plan, wasm, lowerShapeCompilePlanToManifold);
     case 'offsetSolid':
-      throw new Error("Offset solid requires the OCCT backend. Add setActiveBackend('occt') at the top of your script.");
+      return lowerOffsetSolid(plan, wasm, lowerShapeCompilePlanToManifold);
     case 'trimByPlane':
       return lowerShapeTrimByPlaneCompilePlan(plan, wasm);
     case 'importedMesh':
