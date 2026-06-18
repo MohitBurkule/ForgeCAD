@@ -57,11 +57,13 @@ function verticalPrismBase(plan: ShapeCompilePlan): VerticalPrismBase | null {
       return verticalPrismBase(plan.base);
     case 'box': {
       if (![plan.x, plan.y, plan.z].every(Number.isFinite)) return null;
+      // box() is always centered in X/Y (the `center` flag only adds Z-centering),
+      // matching the box primitive's origin convention.
       const profile: ProfileCompilePlan = {
         kind: 'rect',
         width: Math.abs(plan.x),
         height: Math.abs(plan.y),
-        center: plan.center,
+        center: true,
         transforms: [],
       };
       const z = Math.abs(plan.z);
